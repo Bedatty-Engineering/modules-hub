@@ -1,21 +1,20 @@
-name: CI (hub repo)
+name: CI (hub repo, reusable)
 
-# Validates this repository only — not part of the Terraform reusable pipeline.
+# Reusable — orchestration only. Called from .github/workflows/ci.yml.
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-permissions:
-  contents: read
+  workflow_call:
+    inputs:
+      is_pull_request:
+        description: "Whether the trigger was a pull_request event"
+        type: boolean
+        required: true
 
 jobs:
   commitlint:
     name: Lint commit messages
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: inputs.is_pull_request
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,7 +69,7 @@ jobs:
       - name: Verify release config
         run: |
           set -euo pipefail
-          test -f .releaserc.json  || { echo "Missing .releaserc.json"; exit 1; }
-          test -f package.json     || { echo "Missing package.json"; exit 1; }
+          test -f .releaserc.json   || { echo "Missing .releaserc.json"; exit 1; }
+          test -f package.json      || { echo "Missing package.json"; exit 1; }
           test -f package-lock.json || { echo "Missing package-lock.json"; exit 1; }
           echo "Release config files present."

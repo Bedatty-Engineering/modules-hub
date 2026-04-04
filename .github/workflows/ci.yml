@@ -1,0 +1,16 @@
+name: CI (hub repo)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/hub/ci.yml
+    with:
+      is_pull_request: ${{ github.event_name == 'pull_request' }}
