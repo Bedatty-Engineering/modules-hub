@@ -1,0 +1,14 @@
+name: Terraform init via Makefile
+description: Runs make init STACK=<stack> from the repository root.
+
+inputs:
+  stack:
+    description: Stack folder name under stacks/
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: make init
+      shell: bash
+      run: make init "STACK=${{ inputs.stack }}"

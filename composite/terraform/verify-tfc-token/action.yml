@@ -1,0 +1,22 @@
+name: Verify Terraform Cloud token env
+description: Ensures TF_TOKEN_app_terraform_io is non-empty (must be set on the job/env by the caller).
+
+inputs:
+  environment_label:
+    description: Shown in error messages (e.g. website-profile).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check TF_TOKEN_app_terraform_io
+      shell: bash
+      env:
+        ENV_LABEL: ${{ inputs.environment_label }}
+      run: |
+        set -euo pipefail
+        if [ -z "${TF_TOKEN_app_terraform_io:-}" ]; then
+          echo "TF_TOKEN_app_terraform_io is not set for environment $ENV_LABEL"
+          exit 1
+        fi
+        echo "Terraform Cloud token is present for $ENV_LABEL"

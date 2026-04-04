@@ -1,0 +1,29 @@
+name: Terraform apply (directory)
+description: Init and apply in a Terraform root module. Requires Terraform on PATH (run setup composite first).
+
+inputs:
+  working_directory:
+    description: Path to the Terraform root module.
+    required: true
+  auto_approve:
+    description: Pass -auto-approve to apply.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Terraform init
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: terraform init -input=false -upgrade
+
+    - name: Terraform apply
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        if [ "${{ inputs.auto_approve }}" = "true" ]; then
+          terraform apply -auto-approve -input=false -no-color
+        else
+          terraform apply -input=false -no-color
+        fi

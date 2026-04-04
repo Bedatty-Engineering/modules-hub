@@ -1,0 +1,32 @@
+name: Terraform plan (directory)
+description: Init, validate, and plan in a Terraform root module. Requires Terraform on PATH (run setup composite first).
+
+inputs:
+  working_directory:
+    description: Path to the Terraform root module (e.g. stacks/my-app).
+    required: true
+  plan_file:
+    description: Path (relative to workspace) for tee output.
+    required: false
+    default: plan-output.txt
+
+runs:
+  using: composite
+  steps:
+    - name: Terraform init
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: terraform init -input=false -upgrade
+
+    - name: Terraform validate
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: terraform validate
+
+    - name: Terraform plan
+      id: tfplan
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: |
+        set -o pipefail
+        terraform plan -no-color -input=false 2>&1 | tee "${GITHUB_WORKSPACE}/${{ inputs.plan_file }}"

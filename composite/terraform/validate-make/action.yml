@@ -1,0 +1,13 @@
+name: Terraform validate via Makefile
+description: Runs make validate STACK=<stack> from the repository root.
+
+inputs:
+  stack:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: make validate
+      shell: bash
+      run: make validate "STACK=${{ inputs.stack }}"

@@ -1,0 +1,121 @@
+name: Terraform Apply (reusable)
+
+# Orchestration only — actions live under composite/terraform/<name>/.
+
+on:
+  workflow_call:
+    inputs:
+      terraform_version:
+        type: string
+        default: "1.7.5"
+      stacks_dir:
+        type: string
+        default: stacks
+      modules_dir:
+        type: string
+        default: modules
+      environment_prefix:
+        type: string
+        default: website-
+      use_makefile:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  TF_CLI_ARGS: "-no-color"
+
+jobs:
+  detect-changes:
+    name: Detect changed stacks
+    runs-on: ubuntu-latest
+    outputs:
+      stacks: ${{ steps.changed.outputs.stacks }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect stacks
+        id: changed
+        uses: ./composite/terraform/detect-stacks
+        with:
+          stacks_dir: ${{ inputs.stacks_dir }}
+          modules_dir: ${{ inputs.modules_dir }}
+          range_mode: push
+
+  apply:
+    name: Apply · ${{ matrix.stack }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.stacks != '[]'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment_prefix }}${{ matrix.stack }}
+    env:
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_domain: ${{ vars.DOMAIN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJson(needs.detect-changes.outputs.stacks) }}
+    concurrency:
+      group: terraform-apply-global
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mask secrets
+        uses: ./composite/terraform/mask-secrets
+        secrets:
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+
+      - name: Setup Terraform
+        uses: ./composite/terraform/setup
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+
+      - name: Verify Terraform Cloud token
+        uses: ./composite/terraform/verify-tfc-token
+        with:
+          environment_label: ${{ inputs.environment_prefix }}${{ matrix.stack }}
+
+      - name: Init (Makefile)
+        if: inputs.use_makefile == true
+        uses: ./composite/terraform/init-make
+        with:
+          stack: ${{ matrix.stack }}
+
+      - name: Apply (Makefile)
+        id: apply_make
+        if: inputs.use_makefile == true
+        uses: ./composite/terraform/apply-make
+        with:
+          stack: ${{ matrix.stack }}
+
+      - name: Apply (directory)
+        id: apply_direct
+        if: inputs.use_makefile == false
+        uses: ./composite/terraform/apply
+        with:
+          working_directory: ${{ inputs.stacks_dir }}/${{ matrix.stack }}
+
+      - name: Report apply failure
+        if: failure()
+        uses: ./composite/terraform/report-apply-failure
+        with:
+          stack_name: ${{ matrix.stack }}
+        secrets:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

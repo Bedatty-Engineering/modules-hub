@@ -1,0 +1,15 @@
+name: Setup Terraform
+description: Install a pinned Terraform CLI version.
+
+inputs:
+  terraform_version:
+    required: false
+    default: "1.7.5"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform_version }}

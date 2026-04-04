@@ -1,0 +1,13 @@
+name: Terraform apply via Makefile
+description: Runs make apply-auto STACK=<stack> (non-interactive).
+
+inputs:
+  stack:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: make apply-auto
+      shell: bash
+      run: make apply-auto "STACK=${{ inputs.stack }}"

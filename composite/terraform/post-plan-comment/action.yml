@@ -1,0 +1,78 @@
+name: Post Terraform plan PR comment
+description: Comment on the current PR with outcome and collapsible HTML-wrapped plan text.
+
+inputs:
+  plan_outcome:
+    description: GitHub step outcome (success, failure, skipped, cancelled).
+    required: true
+  stack_name:
+    required: true
+  plan_file:
+    description: Path under workspace to the captured plan log.
+    required: false
+    default: plan-output.txt
+
+secrets:
+  GITHUB_TOKEN:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Create comment
+      uses: actions/github-script@v7
+      env:
+        PLAN_OUTCOME: ${{ inputs.plan_outcome }}
+        STACK: ${{ inputs.stack_name }}
+        PLAN_FILE: ${{ inputs.plan_file }}
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+
+          const outcome = process.env.PLAN_OUTCOME;
+          const stack = process.env.STACK;
+          const icon = outcome === 'success' ? '✅' : outcome === 'skipped' ? '⏭️' : '❌';
+          const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+          const planPath = path.join(process.env.GITHUB_WORKSPACE, process.env.PLAN_FILE);
+          let planText = '';
+          try {
+            planText = fs.readFileSync(planPath, 'utf8').trimEnd();
+          } catch {
+            planText = '';
+          }
+
+          const maxLen = 58000;
+          if (planText.length > maxLen) {
+            planText = planText.slice(0, maxLen) + '\n\n_(truncated; see workflow logs for full output)_';
+          }
+
+          function escapeHtml(s) {
+            return s
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+          }
+
+          const planBlock =
+            planText.length > 0
+              ? `\n\n<details>\n<summary>Plan output</summary>\n\n<pre>${escapeHtml(planText)}</pre>\n\n</details>\n`
+              : '\n\n_Plan output was not captured (step skipped or failed before plan)._';
+
+          const body =
+            `### ${icon} Terraform Plan · \`${stack}\`\n\n` +
+            `Plan **${outcome}**. [Workflow run](${runUrl}).` +
+            planBlock;
+
+          try {
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+          } catch (error) {
+            core.warning(`Failed to post PR comment: ${error.message}`);
+          }

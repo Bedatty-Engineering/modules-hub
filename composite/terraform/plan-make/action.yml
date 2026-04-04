@@ -1,0 +1,21 @@
+name: Terraform plan via Makefile
+description: Runs make plan with output copied to a workspace file for PR comments.
+
+inputs:
+  stack:
+    required: true
+  plan_output_file:
+    description: Path relative to workspace where stdout/stderr are teed
+    required: false
+    default: plan-output.txt
+
+runs:
+  using: composite
+  steps:
+    - name: make plan
+      shell: bash
+      env:
+        PLAN_FILE: ${{ inputs.plan_output_file }}
+      run: |
+        set -o pipefail
+        make plan "STACK=${{ inputs.stack }}" 2>&1 | tee "${GITHUB_WORKSPACE}/${PLAN_FILE}"

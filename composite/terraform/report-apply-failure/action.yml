@@ -1,0 +1,30 @@
+name: Report Terraform apply failure
+description: Opens a GitHub issue when apply fails (incident-style notification).
+
+inputs:
+  stack_name:
+    required: true
+
+secrets:
+  GITHUB_TOKEN:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Create issue
+      uses: actions/github-script@v7
+      env:
+        STACK: ${{ inputs.stack_name }}
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const stack = process.env.STACK;
+          const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `🚨 Terraform Apply failed for \`${stack}\``,
+            body: `The apply job for stack **${stack}** failed on commit ${context.sha}.\n\nSee the [workflow run](${runUrl}) for details.`,
+            labels: ['terraform', 'incident']
+          });

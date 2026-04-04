@@ -1,0 +1,76 @@
+name: Detect changed Terraform stacks
+description: |
+  Compare two Git refs and emit a JSON array of stack folder names (second segment under stacks_dir).
+  If anything under modules_dir changed, lists every stack in stacks_dir.
+
+inputs:
+  stacks_dir:
+    description: Root directory containing stack folders (e.g. stacks).
+    required: false
+    default: stacks
+  modules_dir:
+    description: Shared Terraform modules directory name (e.g. modules).
+    required: false
+    default: modules
+  range_mode:
+    description: pr = diff base_sha..head_sha; push = diff HEAD~1..HEAD (requires checkout depth ≥ 2).
+    required: true
+  pr_base_sha:
+    description: Required when range_mode is pr (typically github.event.pull_request.base.sha).
+    required: false
+    default: ""
+  pr_head_sha:
+    description: Required when range_mode is pr (typically github.sha).
+    required: false
+    default: ""
+
+outputs:
+  stacks:
+    description: JSON array of stack names, e.g. ["profile","ieq-va"]
+    value: ${{ steps.run.outputs.stacks }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      name: Compute changed stacks
+      shell: bash
+      env:
+        STACKS_DIR: ${{ inputs.stacks_dir }}
+        MODULES_DIR: ${{ inputs.modules_dir }}
+        RANGE_MODE: ${{ inputs.range_mode }}
+        PR_BASE_SHA: ${{ inputs.pr_base_sha }}
+        PR_HEAD_SHA: ${{ inputs.pr_head_sha }}
+      run: |
+        set -euo pipefail
+        if [ "$RANGE_MODE" = "pr" ]; then
+          BASE_SHA="$PR_BASE_SHA"
+          HEAD_SHA="$PR_HEAD_SHA"
+        else
+          BASE_SHA="HEAD~1"
+          HEAD_SHA="HEAD"
+        fi
+
+        CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" \
+          | grep -E "^${STACKS_DIR}/|^${MODULES_DIR}/" \
+          | awk -F'/' '{print $2}' \
+          | sort -u \
+          | grep -v '^$' || true)
+
+        MODULES_CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" \
+          | grep -E "^${MODULES_DIR}/" | head -1 || true)
+
+        if [ -n "$MODULES_CHANGED" ]; then
+          echo "Module changes detected — planning all stacks under ${STACKS_DIR}"
+          STACKS=$(ls "$STACKS_DIR" | jq -R . | jq -sc .)
+        else
+          if [ -z "$CHANGED" ]; then
+            echo "No stack changes detected"
+            STACKS="[]"
+          else
+            STACKS=$(echo "$CHANGED" | jq -R . | jq -sc .)
+          fi
+        fi
+
+        echo "stacks=$STACKS" >> "$GITHUB_OUTPUT"
+        echo "Stacks: $STACKS"
