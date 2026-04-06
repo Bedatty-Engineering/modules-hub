@@ -1,7 +1,5 @@
 name: Terraform Apply (reusable)
 
-# Orchestration only — actions live under composite/terraform/<name>/.
-
 on:
   workflow_call:
     inputs:
@@ -76,11 +74,6 @@ jobs:
 
       - name: Mask secrets
         uses: ./composite/terraform/mask-secrets
-        secrets:
-          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
 
       - name: Setup Terraform
         uses: ./composite/terraform/setup
@@ -117,5 +110,3 @@ jobs:
         uses: ./composite/terraform/report-apply-failure
         with:
           stack_name: ${{ matrix.stack }}
-        secrets:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -84,11 +84,6 @@ jobs:
 
       - name: Mask secrets
         uses: ./composite/terraform/mask-secrets
-        secrets:
-          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
 
       - name: Setup Terraform
         uses: ./composite/terraform/setup
@@ -138,8 +133,6 @@ jobs:
           plan_outcome: ${{ steps.plan_make.outcome != 'skipped' && steps.plan_make.outcome || steps.plan_direct.outcome }}
           stack_name: ${{ matrix.stack }}
           plan_file: plan-output.txt
-        secrets:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Fail if plan failed
         if: steps.plan_make.outcome == 'failure' || steps.plan_direct.outcome == 'failure'
