@@ -13,6 +13,7 @@ export default {
         "terraform", // composite/terraform/** and .github/workflows/terraform/**
         "config",    // composite/config/**
         "hub",       // composite/hub/** and .github/workflows/hub/**
+        "modules",   // composite/modules/** and .github/workflows/modules/**
         "release",   // .releaserc.json, package.json, commitlint config
         "deps",      // dependency updates (npm)
         "docs",      // docs/**

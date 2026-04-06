@@ -1,4 +1,4 @@
-name: CI (hub repo)
+name: Validate
 
 on:
   push:
@@ -11,6 +11,6 @@ permissions:
 
 jobs:
   ci:
-    uses: ./.github/workflows/hub/ci.yml
+    uses: ./.github/workflows/validate.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}

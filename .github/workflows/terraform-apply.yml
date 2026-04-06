@@ -1,6 +1,4 @@
-name: Terraform Plan (reusable)
-
-# Orchestration only — actions live under composite/terraform/<name>/.
+name: Terraform Apply (reusable)
 
 on:
   workflow_call:
@@ -17,12 +15,6 @@ on:
       environment_prefix:
         type: string
         default: website-
-      concurrency_group:
-        type: string
-        default: ""
-      post_plan_comment:
-        type: boolean
-        default: true
       use_makefile:
         type: boolean
         default: true
@@ -45,7 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
       - name: Detect stacks
         id: changed
@@ -53,12 +45,10 @@ jobs:
         with:
           stacks_dir: ${{ inputs.stacks_dir }}
           modules_dir: ${{ inputs.modules_dir }}
-          range_mode: pr
-          pr_base_sha: ${{ github.event.pull_request.base.sha }}
-          pr_head_sha: ${{ github.sha }}
+          range_mode: push
 
-  plan:
-    name: Plan · ${{ matrix.stack }}
+  apply:
+    name: Apply · ${{ matrix.stack }}
     needs: detect-changes
     if: needs.detect-changes.outputs.stacks != '[]'
     runs-on: ubuntu-latest
@@ -75,8 +65,8 @@ jobs:
       matrix:
         stack: ${{ fromJson(needs.detect-changes.outputs.stacks) }}
     concurrency:
-      group: terraform-plan-${{ inputs.concurrency_group != '' && inputs.concurrency_group || github.run_id }}-${{ matrix.stack }}
-      cancel-in-progress: true
+      group: terraform-apply-global
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -84,11 +74,6 @@ jobs:
 
       - name: Mask secrets
         uses: ./composite/terraform/mask-secrets
-        secrets:
-          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
 
       - name: Setup Terraform
         uses: ./composite/terraform/setup
@@ -106,41 +91,22 @@ jobs:
         with:
           stack: ${{ matrix.stack }}
 
-      - name: Validate (Makefile)
+      - name: Apply (Makefile)
+        id: apply_make
         if: inputs.use_makefile == true
-        uses: ./composite/terraform/validate-make
+        uses: ./composite/terraform/apply-make
         with:
           stack: ${{ matrix.stack }}
 
-      - name: Plan (Makefile)
-        id: plan_make
-        if: inputs.use_makefile == true
-        uses: ./composite/terraform/plan-make
-        with:
-          stack: ${{ matrix.stack }}
-          plan_output_file: plan-output.txt
-        continue-on-error: true
-
-      - name: Plan (directory)
-        id: plan_direct
+      - name: Apply (directory)
+        id: apply_direct
         if: inputs.use_makefile == false
-        uses: ./composite/terraform/plan
+        uses: ./composite/terraform/apply
         with:
           working_directory: ${{ inputs.stacks_dir }}/${{ matrix.stack }}
-          plan_file: plan-output.txt
-        continue-on-error: true
 
-      - name: Post plan to PR
-        if: always() && inputs.post_plan_comment == true && github.event_name == 'pull_request'
-        uses: ./composite/terraform/post-plan-comment
-        continue-on-error: true
+      - name: Report apply failure
+        if: failure()
+        uses: ./composite/terraform/report-apply-failure
         with:
-          plan_outcome: ${{ steps.plan_make.outcome != 'skipped' && steps.plan_make.outcome || steps.plan_direct.outcome }}
           stack_name: ${{ matrix.stack }}
-          plan_file: plan-output.txt
-        secrets:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Fail if plan failed
-        if: steps.plan_make.outcome == 'failure' || steps.plan_direct.outcome == 'failure'
-        run: exit 1
