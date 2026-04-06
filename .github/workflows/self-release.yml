@@ -14,6 +14,6 @@ permissions:
 jobs:
   release:
     if: github.event.workflow_run.conclusion == 'success'
-    uses: ./.github/workflows/self-release.yml
+    uses: ./.github/workflows/release.yml
     secrets:
       RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}

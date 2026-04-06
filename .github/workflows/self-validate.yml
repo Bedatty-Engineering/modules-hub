@@ -11,6 +11,6 @@ permissions:
 
 jobs:
   ci:
-    uses: ./.github/workflows/self-validate.yml
+    uses: ./.github/workflows/validate.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
