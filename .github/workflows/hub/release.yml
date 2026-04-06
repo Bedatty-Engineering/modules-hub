@@ -1,6 +1,4 @@
-name: Release (reusable)
-
-# Reusable — orchestration only. Called from .github/workflows/release.yml.
+name: Release
 
 on:
   workflow_call:

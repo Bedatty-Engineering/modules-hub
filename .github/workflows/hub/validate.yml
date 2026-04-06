@@ -1,6 +1,4 @@
-name: CI (hub repo, reusable)
-
-# Reusable — orchestration only. Called from .github/workflows/ci.yml.
+name: CI (hub repo)
 
 on:
   workflow_call:
