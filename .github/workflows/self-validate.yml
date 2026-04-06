@@ -1,4 +1,6 @@
-name: CI (hub repo)
+name: Self validate (reusable)
+
+# Reusable — called only by validate.yml in this repo.
 
 on:
   workflow_call:
