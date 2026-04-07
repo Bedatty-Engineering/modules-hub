@@ -1,0 +1,278 @@
+---
+description: Structure, design rules, and conventions for composite actions under composite/
+alwaysApply: false
+---
+# Composite Actions
+
+## Modifying an existing composite?
+
+For non-trivial changes, summarize behavior today, the intended change, and which workflows or repos call the composite; confirm the plan before large refactors. Keep edits consistent with sibling actions under the same domain (`composite/terraform/*`, `composite/config/*`, `composite/hub/*`).
+
+---
+
+## Before you create anything
+
+**Step 1 — Check if it already exists in this repo**
+
+Search `composite/` before starting. If a composite already covers the same capability:
+
+- Summarize what the existing composite does and which inputs it exposes
+- Identify the gap between the existing behavior and the new requirement
+- Propose an **adaptation plan** (add an input, extend steps, split into two) instead of creating a new directory
+
+**Step 2 — Check the GitHub Actions Marketplace first**
+
+Before writing custom steps from scratch, search the [Marketplace](https://github.com/marketplace?type=actions) for an existing action that covers the need:
+
+- Prefer a well-maintained marketplace action over custom shell scripting for non-trivial logic
+- Wrap it in a composite under `composite/<domain>/<name>/` if it needs input normalization or extra steps
+- **Third-party actions** (outside this repo / Bedatty-owned actions) **should be pinned by commit SHA**, not by tag — add a `# vX.Y.Z` comment for readability (e.g. `uses: actions/checkout@abc123 # v4`). Tags can be moved or force-pushed upstream. If the repo uses Dependabot for Actions, SHA updates can be automated there.
+- **Actions from this repository** (`<org>/modules-hub/composite/...`) are consumed with **release tags** (e.g. `@v1`, `@v1.2.3`) or a named branch for testing — mirror how existing READMEs in this repo document usage
+- Never use `@main` or `@master` for third-party actions
+- Document in the composite `README.md` why a third-party action was chosen (and any version pin rationale)
+
+Only implement from scratch when no suitable action exists or when existing ones do not meet security or customization requirements.
+
+---
+
+## Directory layout
+
+Composites live under **`composite/<domain>/<name>/`**, grouped by domain (see root `README.md`):
+
+```
+composite/
+├── terraform/<action>/   ← Terraform plan/apply, masking, Makefile helpers, …
+├── config/<action>/      ← Bootstrap / repo configuration (e.g. GPG setup)
+└── hub/<action>/         ← Reserved for non-Terraform, non-config shared steps
+```
+
+Each composite has exactly two files:
+
+```
+composite/config/setup-gpg/
+├── action.yml   ← required
+└── README.md    ← required
+```
+
+> **File extension rule:** always use `.yml`, never `.yaml`. This applies to `action.yml`, workflow files, and YAML config in this repository.
+
+## Relationship to reusable workflows
+
+```
+Caller repository workflow    ← triggers + job references
+         ↓
+Reusable workflow             ← jobs, runners, secrets, matrix
+(.github/workflows/*.yml)
+         ↓
+Composite action            ← reusable step bundles
+(composite/<domain>/<name>/action.yml)
+```
+
+**Rules:**
+
+- Caller workflows stay thin (triggers, `uses:` of reusable workflows, secrets)
+- Reusable workflows orchestrate jobs and pass inputs into composites
+- Composites encapsulate steps for a single responsibility
+
+## action.yml structure
+
+```yaml
+name: Human-readable name
+description: One-line description.
+
+inputs:
+  github-token:
+    description: GitHub token with required permissions
+    required: true
+  some-option:
+    description: What this option controls
+    required: false
+    default: "default-value"
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout
+      uses: actions/checkout@<sha> # v4
+    - name: Do the work
+      uses: some-owner/some-action@<sha> # v1
+      with:
+        token: ${{ inputs.github-token }}
+        option: ${{ inputs.some-option }}
+```
+
+## Configurability — defaults first, override when needed
+
+Every composite should be **usable with sensible defaults** where possible. Optional inputs should declare a `default` so callers can omit them unless they need to override.
+
+### Composite layer — defaults for optional inputs
+
+```yaml
+inputs:
+  plan_file:
+    description: Path (relative to workspace) for plan output
+    required: false
+    default: plan-output.txt
+```
+
+### Reusable workflow layer — expose toggles for optional behavior
+
+When behavior is optional at the pipeline level (skip a step, choose Makefile vs directory mode), expose inputs on `workflow_call` and use `if:` on steps — pass values into composites when those steps run.
+
+```yaml
+on:
+  workflow_call:
+    inputs:
+      post_plan_comment:
+        type: boolean
+        default: true
+      use_makefile:
+        type: boolean
+        default: true
+
+jobs:
+  plan:
+    steps:
+      - name: Plan (Makefile)
+        if: inputs.use_makefile == true
+        uses: ./composite/terraform/plan-make
+        with:
+          stack: ${{ matrix.stack }}
+
+      - name: Post plan to PR
+        if: always() && inputs.post_plan_comment == true && github.event_name == 'pull_request'
+        uses: ./composite/terraform/post-plan-comment
+        with:
+          stack_name: ${{ matrix.stack }}
+```
+
+**Rules:**
+
+- Optional **feature-style** inputs on the composite should have a `default`; avoid `required: true` for pure toggles
+- Reusable workflow `workflow_call` inputs often use **snake_case**; map them explicitly into composite `with:` (composite inputs typically use **kebab-case**)
+- Job/step-level `if:` that decides *whether* a composite runs belongs in the **reusable workflow** (or caller), not hidden inside unrelated composites
+
+## Skip-enabling outputs
+
+Composites that detect changes, drift, or pass/fail gates should expose **boolean outputs** (string `'true'` / `'false'`) so callers can skip downstream work.
+
+```yaml
+outputs:
+  has_changes:
+    description: Whether any changes were detected (true/false)
+    value: ${{ steps.detect.outputs.has_changes }}
+```
+
+Naming: `has_<noun>` (e.g. `has_changes`, `has_updates`, `has_drift`).
+
+## Step section titles
+
+When a composite has more than one logical group of steps, separate groups with a titled section comment:
+
+```yaml
+runs:
+  using: composite
+  steps:
+    # ----------------- Setup -----------------
+    - name: Setup Terraform
+      ...
+
+    # ----------------- Plan -----------------
+    - name: Terraform plan
+      ...
+```
+
+**Rules:**
+
+- Format: `# ----------------- Title -----------------`
+- Use when there are two or more logical groups
+- Place the comment immediately before the first step of the group (no blank line between comment and step)
+
+## Design rules
+
+- **Roughly 5–15 steps** — split if much larger
+- **Single responsibility** — one composite, one capability
+- Must not define `jobs:` or `uses:` a reusable workflow (only `steps:` under `runs:`)
+- Avoid duplicating full pipeline policy inside the composite when the workflow already branches with `if:`
+- Avoid mixing unrelated toolchains in one composite (e.g. do not combine heavy Terraform and unrelated runtimes in a single action unless the repo explicitly standardizes that)
+
+## Domain examples (this repo)
+
+Terraform-focused steps:
+
+```
+composite/terraform/setup/           ← Terraform CLI on PATH
+composite/terraform/plan/            ← init, validate, plan in a directory
+composite/terraform/detect-stacks/   ← change detection for matrix stacks
+```
+
+Cross-cutting / repo setup:
+
+```
+composite/config/setup-gpg/          ← signing keys for release flows
+```
+
+Add new **hub** composites under `composite/hub/<name>/` when they are not Terraform- or config-specific.
+
+## Runner
+
+Composites inherit the runner from the calling job. In **README examples**, use the same runner style as reusable workflows in this repository (currently **`ubuntu-latest`** unless a workflow explicitly standardizes on another label):
+
+```yaml
+jobs:
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: <org>/modules-hub/composite/terraform/plan@v1
+        with:
+          working_directory: stacks/my-stack
+```
+
+## README.md expectations
+
+Align with existing composites in this repo (see `composite/config/setup-gpg/README.md` as a reference):
+
+1. **Title** and short description of what the action does
+2. **Usage** — full `uses:` example with path `<org>/modules-hub/composite/<domain>/<name>@<ref>` and `with:` / secrets as needed
+3. **Inputs** table — name, required, description (and default when relevant)
+4. **Outputs** table — when the composite defines outputs
+5. **Permissions or secrets** — when callers must grant scopes or add repository secrets
+
+Optional: link to `docs/terraform/` or `docs/hub/` when the behavior is documented there.
+
+### Usage example ref policy
+
+Do not tell consumers to pin **`@main`** for releases. Prefer:
+
+```yaml
+# Testing — branch or pre-release ref
+uses: <org>/modules-hub/composite/terraform/plan@chore/my-branch
+
+# Production — semver tag from release automation
+uses: <org>/modules-hub/composite/terraform/plan@v1
+```
+
+## After adding a new composite
+
+- Update **root `README.md`** (domain table) if the composite is part of the public contract for external callers
+- If the composite is Terraform-related, update or add docs under **`docs/terraform/`** when behavior is non-obvious
+
+## Reserved names — never use as input names
+
+Never declare inputs using GitHub reserved prefixes — they can be overridden or break resolution:
+
+```yaml
+# ❌ Reserved — will conflict with the runtime variable
+inputs:
+  GITHUB_TOKEN:
+  GITHUB_SHA:
+  ACTIONS_RUNTIME_TOKEN:
+  RUNNER_OS:
+
+# ✅ Use distinct names
+inputs:
+  github-token:
+  manage-token:
+```
+
+Reserved prefixes: `GITHUB_*`, `ACTIONS_*`, `RUNNER_*`.

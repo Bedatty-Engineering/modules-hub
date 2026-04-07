@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["Validate"]
     types: [completed]
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
   contents: write
@@ -17,3 +17,5 @@ jobs:
     uses: ./.github/workflows/release.yml
     secrets:
       RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
