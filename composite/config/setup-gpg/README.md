@@ -14,7 +14,10 @@ commands available on GitHub-hosted runners.
   with:
     gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
     gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+    git_identity_token: ${{ secrets.RELEASE_TOKEN }}
 ```
+
+Omit `git_identity_token` when you already set `user.name` / `user.email` elsewhere.
 
 ## Inputs
 
@@ -22,6 +25,7 @@ commands available on GitHub-hosted runners.
 |---|---|---|
 | `gpg_private_key` | yes | Armored GPG private key. Export with `gpg --armor --export-secret-keys <KEY_ID>` and store the full block as a secret. |
 | `gpg_passphrase` | no | Passphrase for the key. Leave empty if the key was created without one. |
+| `git_identity_token` | no | If set (e.g. same PAT used for checkout/release), sets `git config user.name` and `user.email` from `gh api user` on the runner (`gh` is preinstalled on GitHub-hosted runners). |
 
 ## Outputs
 
@@ -59,3 +63,5 @@ commands available on GitHub-hosted runners.
 4. Sets `user.signingkey`, `commit.gpgsign true`, and `tag.gpgsign true` in
    the local git config so every commit and tag created in the same job is
    automatically signed.
+5. Optionally, when `git_identity_token` is set, sets `user.name` and `user.email`
+   from the GitHub account associated with that token.
