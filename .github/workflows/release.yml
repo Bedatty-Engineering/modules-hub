@@ -31,20 +31,11 @@ jobs:
         run: npm ci
 
       - name: Setup GPG signing
-        uses: ./composite/hub/setup-gpg
+        uses: Bedatty-Engineering/modules-hub/composite/config/setup-gpg@main
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-
-      - name: Configure git identity from token owner
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: |
-          LOGIN=$(gh api user --jq .login)
-          EMAIL=$(gh api user --jq '.email // empty')
-          EMAIL="${EMAIL:-${LOGIN}@users.noreply.github.com}"
-          git config user.name  "$LOGIN"
-          git config user.email "$EMAIL"
+          git_identity_token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Release
         env:

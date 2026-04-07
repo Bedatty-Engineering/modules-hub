@@ -15,7 +15,4 @@ jobs:
   release:
     if: github.event.workflow_run.conclusion == 'success'
     uses: ./.github/workflows/release.yml
-    secrets:
-      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+    secrets: inherit
