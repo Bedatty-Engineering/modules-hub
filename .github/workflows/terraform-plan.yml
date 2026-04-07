@@ -1,6 +1,4 @@
-name: Terraform Plan (reusable)
-
-# Orchestration only — actions live under composite/terraform/<name>/.
+name: Terraform Plan [Reusable]
 
 on:
   workflow_call:

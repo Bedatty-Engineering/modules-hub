@@ -1,4 +1,4 @@
-name: Validate (reusable)
+name: Validate [Reusable]
 
 on:
   workflow_call:

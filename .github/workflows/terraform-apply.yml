@@ -1,4 +1,4 @@
-name: Terraform Apply (reusable)
+name: Terraform Apply [Reusable]
 
 on:
   workflow_call:
