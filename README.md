@@ -1,4 +1,7 @@
-# modules-hub
+<table><tr>
+<td><img src="https://github.com/Bedatty-Engineering.png" alt="Bedatty Engineering" width="80" /></td>
+<td><h1>modules-hub</h1></td>
+</tr></table>
 
 Shared **GitHub Actions**: reusable workflows under `.github/workflows/` and composite actions under `composite/`. Consumed by other repositories via pinned refs (for example release tags).
 

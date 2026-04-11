@@ -1,4 +1,4 @@
-name: Terraform init via Makefile
+name: Terraform init via Makefile [composite]
 description: Runs make init STACK=<stack> from the repository root.
 
 inputs:

@@ -4,6 +4,12 @@ alwaysApply: false
 ---
 # Composite Actions
 
+**Docs and comments:** Prefer stable, **generic** README and YAML commentary—assert rules, avoid exhaustive lists that go stale. See **AGENTS.md** → *Documentation and comments*.
+
+## Display name (`name:`)
+
+Every **`composite/.../action.yml`** must set top-level **`name:`** to end with **` [composite]`** (e.g. `Setup Terraform [composite]`) so the Actions UI distinguishes composites from jobs and marketplace actions.
+
 ## Modifying an existing composite?
 
 For non-trivial changes, summarize behavior today, the intended change, and which workflows or repos call the composite; confirm the plan before large refactors. Keep edits consistent with sibling actions under the same domain (`composite/terraform/*`, `composite/config/*`, `composite/hub/*`).
@@ -30,6 +36,14 @@ Before writing custom steps from scratch, search the [Marketplace](https://githu
 - **Actions from this repository** (`<org>/modules-hub/composite/...`) are consumed with **release tags** (e.g. `@v1`, `@v1.2.3`) or a named branch for testing — mirror how existing READMEs in this repo document usage
 - Never use `@main` or `@master` for third-party actions
 - Document in the composite `README.md` why a third-party action was chosen (and any version pin rationale)
+
+**Step 3 — Keep Dependabot in sync**
+
+After you add or change **`uses:`** on an external action in `action.yml`:
+
+1. Open **`.github/dependabot.yml`** (must use that exact filename on GitHub).  
+2. If a **new `owner/*` namespace** is not covered by **`groups.patterns`**, add or extend **`groups`**; add **`ignore`** only when an action must not auto-update. Do **not** grow a long per-action comment block in that file—keep the YAML header **generic** (see **AGENTS.md — Dependabot maintenance**).  
+3. Keep Dependabot commit **`prefix: "chore(deps): "`** for **commitlint**.
 
 Only implement from scratch when no suitable action exists or when existing ones do not meet security or customization requirements.
 
@@ -77,7 +91,7 @@ Composite action            ← reusable step bundles
 ## action.yml structure
 
 ```yaml
-name: Human-readable name
+name: Human-readable name [composite]
 description: One-line description.
 
 inputs:

@@ -1,4 +1,4 @@
-name: Terraform plan (directory)
+name: Terraform plan (directory) [composite]
 description: Init, validate, and plan in a Terraform root module. Requires Terraform on PATH (run setup composite first).
 
 inputs:

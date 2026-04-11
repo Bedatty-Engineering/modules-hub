@@ -4,6 +4,8 @@ alwaysApply: false
 ---
 # Reusable Workflows
 
+**Docs and comments:** Prefer stable, **generic** README and YAML commentary—assert rules, avoid exhaustive lists that go stale. See **AGENTS.md** → *Documentation and comments*.
+
 ## Modifying an existing workflow?
 
 For non-trivial edits, summarize current jobs, inputs, secrets, and callers; outline the change and blast radius before refactoring. Match patterns used in sibling workflows in this repository.
@@ -30,6 +32,14 @@ Before large inline shell in a workflow, search the [Marketplace](https://github
 - **Composites from this repo** are referenced by callers as `<org>/modules-hub/composite/...` with a **release tag** (e.g. `@v1`) or a branch for testing — not `@main` for production examples
 - Never use `@main` or `@master` for third-party actions
 - Document non-obvious action choices in **`docs/terraform/`**, **`docs/hub/`**, or the relevant **`README.md`**, depending on area (see root `README.md`)
+
+**Step 3 — Keep Dependabot in sync**
+
+After you add or change **`uses:`** on an external action in `.github/workflows/`:
+
+1. Open **`.github/dependabot.yml`** (must use that exact filename on GitHub).  
+2. If a **new `owner/*` namespace** is not covered by **`groups.patterns`**, add or extend **`groups`**; add **`ignore`** only when an action must not auto-update. Do **not** maintain a detailed per-action inventory in YAML comments—keep the header **generic** (see **AGENTS.md — Dependabot maintenance**).  
+3. Keep Dependabot commit **`prefix: "chore(deps): "`** for **commitlint**.
 
 Only implement from scratch when nothing suitable exists or security/customization requires it.
 
@@ -71,6 +81,11 @@ reusable: <org>/modules-hub/.github/workflows/terraform-plan.yml@v1
 | Reuse steps inside a job | Composite under `composite/` |
 | Multiple jobs, matrix, environments | Reusable workflow |
 | Pass secrets from caller into jobs | Reusable workflow (`secrets:` on `workflow_call`) |
+
+## Display name (`name:`)
+
+- Workflows that expose **`on: workflow_call`** (reusable definitions) must set top-level **`name:`** to end with **` [Reusable]`** (e.g. `Validate [Reusable]`, `Terraform Plan [Reusable]`).
+- **`self-*` entrypoints** must **not** use `[Reusable]`—they are thin wrappers; use a short plain title (e.g. `Validate`, `Release`).
 
 ## self-* workflows (entrypoints for this repo)
 

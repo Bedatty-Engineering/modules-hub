@@ -1,4 +1,7 @@
-# Agent Guidelines — modules-hub
+<table><tr>
+<td><img src="https://github.com/Bedatty-Engineering.png" alt="Bedatty Engineering" width="80" /></td>
+<td><h1>Agent Guidelines — modules-hub</h1></td>
+</tr></table>
 
 Read this file before making changes. It orients AI agents and contributors working in this repository.
 
@@ -32,6 +35,18 @@ Domains follow the root README: **`terraform`**, **`config`**, **`hub`**. Each c
 
 Entrypoint workflows for **this** repo use the `self-*` prefix (e.g. `self-validate.yml`) and call reusables via `./.github/workflows/<name>.yml`.
 
+### Display names (`name:` in YAML)
+
+GitHub shows the top-level **`name`** in the Actions UI—use a **suffix** so callables are obvious:
+
+| Artifact | Suffix on `name:` | Notes |
+|----------|-------------------|--------|
+| **Reusable workflow** (`on: workflow_call`) | **` [Reusable]`** | e.g. `Terraform Plan [Reusable]` |
+| **Composite action** (`composite/.../action.yml`) | **` [composite]`** | lowercase label, consistent across composites |
+| **`self-*` workflow** (entrypoint only) | *(none)* | Not the reusable definition; keep a short title (e.g. `Validate`) |
+
+Older files may predate this rule; rename opportunistically when editing.
+
 ### Composite paths in reusable workflows
 
 Two different ideas apply when a reusable workflow in **modules-hub** runs for an **external** caller:
@@ -54,14 +69,32 @@ Add a `dry_run` input only when a workflow **mutates or destroys** external stat
 - Default integration branches in CI today include **`main`** and **`dev`** (see `self-validate.yml`). Do not assume a `develop` branch unless the project adds it.
 - Follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject` — aligned with **commitlint** in this repo (`commitlint.config.js`).
 
+### Documentation and comments *(low churn)*
+
+Write **markdown, YAML comments, and code comments** so they stay useful without constant edits:
+
+- Prefer **short, generic, assertive** wording over exhaustive lists that go stale (inventories of files, versions, or actions).
+- Put **volatile detail** in the source of truth (workflows, `action.yml`, manifests); docs should state **rules and pointers**, not duplicate tables that drift.
+- In **code**, comment **why** or non-obvious constraints—not a play-by-play of obvious syntax.
+- If a doc would need updating on every small change, **narrow the doc** or **remove the duplication** instead.
+
+**Dependabot** (see below) follows the same idea: keep `.github/dependabot.yml` headers minimal.
+
 ### Files to treat carefully
 
 | File | Note |
 |------|------|
 | `.releaserc.json` | Drives **semantic-release**; coordinate before changing release rules |
 | `package.json` / `package-lock.json` | Release and tooling deps |
+| `.github/dependabot.yml` | Dependabot config; filename **`dependabot.yml`** only (GitHub). Adjust **`groups` / `ignore`** when new external `owner/*` actions appear—see **Dependabot maintenance** |
 
-**Extension:** use **`.yml`** only, not `.yaml`, for workflows, `action.yml`, and YAML config in this repository.
+**Extension:** use **`.yml`** only, not `.yaml`, for workflows, `action.yml`, and YAML config in this repository. **Exception:** the Dependabot file must be exactly `.github/dependabot.yml` as required by GitHub.
+
+### Dependabot maintenance
+
+Same discipline as **Documentation and comments** above: no long inventories in the YAML header.
+
+When **`uses:`** adds a **new external `owner/*` namespace** not covered by **`groups.patterns`**, update **`groups`** (and **`ignore`** only when something must not auto-update). Keep **`prefix: "chore(deps): "`** for **commitlint**; third-party actions use **SHA + `# vX.Y.Z`** in YAML; review Dependabot PRs before merge.
 
 ---
 
@@ -90,7 +123,7 @@ There is no separate `refactoring.mdc` in this repo. For non-trivial edits:
 
 ## Security rules
 
-- **Third-party actions** — Prefer **commit SHA** pins with a `# vX.Y.Z` comment. If `.github/dependabot.yml` exists for Actions, use it for bumps.
+- **Third-party actions** — Prefer **commit SHA** pins with a `# vX.Y.Z` comment. If `.github/dependabot.yml` exists, use it for bumps; when a **new `owner/*`** appears, extend **`groups`** / **`ignore`** as needed (see **Dependabot maintenance**).
 - **This repository** — Workflows and composites are referenced by consumers with **version tags** (e.g. `@v1`), not `@main`, in documentation and examples.
 - Never use `@main` or `@master` for third-party actions.
 - Never hardcode tokens; use `secrets` / `inputs`. Never print secrets in logs or step summaries.

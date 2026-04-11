@@ -1,4 +1,4 @@
-name: Verify Terraform Cloud token env
+name: Verify Terraform Cloud token env [composite]
 description: Ensures TF_TOKEN_app_terraform_io is non-empty (must be set on the job/env by the caller).
 
 inputs:

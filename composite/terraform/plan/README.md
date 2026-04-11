@@ -1,4 +1,7 @@
-# Terraform plan (directory)
+<table><tr>
+<td><img src="https://github.com/Bedatty-Engineering.png" alt="Bedatty Engineering" width="80" /></td>
+<td><h1>Terraform plan (directory)</h1></td>
+</tr></table>
 
 Runs `terraform init`, `validate`, and `plan`. Install Terraform first (e.g. `composite/terraform/setup`). Plan output is teed to `plan_file` (default `plan-output.txt`).
 
