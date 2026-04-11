@@ -1,0 +1,72 @@
+# Dependabot: GitHub Actions + npm at repo root. Filename must be `.github/dependabot.yml` (GitHub).
+# Schedule: weekly (Monday night BRT). Commit prefix `chore(deps):` matches commitlint. When new external
+# `owner/*` actions appear, extend `groups`
+# or `ignore` as needed — see AGENTS.md (“Dependabot maintenance”) and `.cursor/*` Step 3.
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "America/Sao_Paulo"
+    target-branch: "dev"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(deps): "
+    open-pull-requests-limit: 10
+    reviewers:
+      - "be-admin"
+    groups:
+      actions-core:
+        patterns:
+          - "actions/*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+
+      hashicorp:
+        patterns:
+          - "hashicorp/*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+
+      bedatty-engineering:
+        patterns:
+          - "Bedatty-Engineering/*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "America/Sao_Paulo"
+    target-branch: "dev"
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "chore(deps): "
+    open-pull-requests-limit: 10
+    reviewers:
+      - "be-admin"
+    groups:
+      npm-tooling:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"

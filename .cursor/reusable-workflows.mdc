@@ -1,0 +1,422 @@
+---
+description: Architecture, structure, conventions, and security rules for reusable workflows in .github/workflows/
+alwaysApply: false
+---
+# Reusable Workflows
+
+**Docs and comments:** Prefer stable, **generic** README and YAML commentary—assert rules, avoid exhaustive lists that go stale. See **AGENTS.md** → *Documentation and comments*.
+
+## Modifying an existing workflow?
+
+For non-trivial edits, summarize current jobs, inputs, secrets, and callers; outline the change and blast radius before refactoring. Match patterns used in sibling workflows in this repository.
+
+---
+
+## Before you create anything
+
+**Step 1 — Check if it already exists in this repo**
+
+Search `.github/workflows/` before starting. If a workflow already covers the same pipeline:
+
+- Summarize what it does: jobs, `workflow_call` inputs, secrets, and notable `env`
+- Identify the gap versus the new requirement
+- Propose an **adaptation plan** (new job, new input, new secret, split workflow) instead of duplicating files
+
+**Step 2 — Check the GitHub Actions Marketplace first**
+
+Before large inline shell in a workflow, search the [Marketplace](https://github.com/marketplace?type=actions):
+
+- Prefer maintained actions over ad-hoc scripts for non-trivial logic
+- If wrapping is needed, add or extend a composite under `composite/<domain>/<name>/` and call it from the workflow (see `.cursor/composite-actions.mdc`)
+- **Third-party actions** should be pinned by **commit SHA**, with a `# vX.Y.Z` comment for humans. If `.github/dependabot.yml` exists for Actions, use it to bump SHAs
+- **Composites from this repo** are referenced by callers as `<org>/modules-hub/composite/...` with a **release tag** (e.g. `@v1`) or a branch for testing — not `@main` for production examples
+- Never use `@main` or `@master` for third-party actions
+- Document non-obvious action choices in **`docs/terraform/`**, **`docs/hub/`**, or the relevant **`README.md`**, depending on area (see root `README.md`)
+
+**Step 3 — Keep Dependabot in sync**
+
+After you add or change **`uses:`** on an external action in `.github/workflows/`:
+
+1. Open **`.github/dependabot.yml`** (must use that exact filename on GitHub).  
+2. If a **new `owner/*` namespace** is not covered by **`groups.patterns`**, add or extend **`groups`**; add **`ignore`** only when an action must not auto-update. Do **not** maintain a detailed per-action inventory in YAML comments—keep the header **generic** (see **AGENTS.md — Dependabot maintenance**).  
+3. Keep Dependabot commit **`prefix: "chore(deps): "`** for **commitlint**.
+
+Only implement from scratch when nothing suitable exists or security/customization requires it.
+
+---
+
+## Architecture model
+
+```
+Caller repository workflow    ← triggers, `uses:` reusable workflow, `secrets:` / `with:`
+         ↓
+Reusable workflow             ← jobs, runners, permissions, secrets, matrix
+(.github/workflows/*.yml)
+         ↓
+Composite action              ← shared steps
+(composite/<domain>/<name>/action.yml)
+```
+
+**Rules:**
+
+- Caller workflows stay thin: triggers, job(s) that call reusable workflows, pass `with:` and `secrets:`
+- Reusable workflows own job structure, `permissions`, secret wiring, and `if:` / `needs:` orchestration
+- Composites own step sequences for one capability (see `.cursor/composite-actions.mdc`)
+
+**Example (this repo — Terraform plan)**
+
+```
+caller: consumer repo  .github/workflows/terraform-plan.yml  (on: pull_request)
+    ↓
+reusable: <org>/modules-hub/.github/workflows/terraform-plan.yml@v1
+    ↓ job: detect-changes  →  ./composite/terraform/detect-stacks
+    ↓ job: plan (matrix)   →  ./composite/terraform/setup, plan-make | plan, post-plan-comment, …
+```
+
+## When to use each
+
+| Need | Use |
+|---|---|
+| Standardize a full pipeline across repos | Reusable workflow |
+| Reuse steps inside a job | Composite under `composite/` |
+| Multiple jobs, matrix, environments | Reusable workflow |
+| Pass secrets from caller into jobs | Reusable workflow (`secrets:` on `workflow_call`) |
+
+## Display name (`name:`)
+
+- Workflows that expose **`on: workflow_call`** (reusable definitions) must set top-level **`name:`** to end with **` [Reusable]`** (e.g. `Validate [Reusable]`, `Terraform Plan [Reusable]`).
+- **`self-*` entrypoints** must **not** use `[Reusable]`—they are thin wrappers; use a short plain title (e.g. `Validate`, `Release`).
+
+## self-* workflows (entrypoints for this repo)
+
+Files prefixed with `self-` are **thin entrypoints** for automation in **this** repository only. They are not reusable via `workflow_call` from other repos.
+
+Rules:
+
+- **Must NOT declare `workflow_call`** on the `self-*` file itself
+- **`dry_run`** — only add when the workflow can mutate or destroy something; follow the boolean conventions below
+- Call reusable workflows with a **repo-relative path**: `./.github/workflows/<name>.yml`
+- Triggers are repo-specific (`push`, `pull_request`, `workflow_dispatch`, …)
+- Keep logic minimal; orchestration lives in the reusable workflow
+
+```yaml
+# ✅ Pattern used in this repo (simplified)
+name: Validate
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+jobs:
+  ci:
+    uses: ./.github/workflows/validate.yml
+    with:
+      is_pull_request: ${{ github.event_name == 'pull_request' }}
+```
+
+---
+
+## Runner
+
+Use the same runner labels as existing workflows in this repository. Today that is **`ubuntu-latest`** for reusable workflows such as `validate.yml`, `terraform-plan.yml`, and `release.yml`.
+
+```yaml
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+```
+
+If the organization later standardizes on a different label (e.g. larger GitHub-hosted or custom runner), update workflows together and adjust this rule.
+
+## Workflow structure
+
+Reusable workflows intended for **external callers** should:
+
+- Declare `on: workflow_call` with explicit `inputs` and `secrets` as needed — avoid relying on implicit undocumented context
+- Declare **`permissions:`** explicitly (see Security — least privilege)
+- Prefer **not** mixing unrelated concerns in one file (split Terraform plan vs apply vs validate vs release)
+
+**`workflow_dispatch` on reusable workflows:** avoid unless there is a clear need. If operators need a manual entrypoint, a **`self-*`** workflow with `workflow_dispatch` that calls the reusable workflow is often clearer.
+
+**`dry_run` input:** add only when the workflow **applies** changes (deploy, release to prod, destructive cleanup, etc.), not for read-only validation.
+
+When present:
+
+- `type: boolean`, `required: false`
+- `default: true` for destructive operations (preview safe by default)
+- `default: false` for non-destructive but state-changing syncs when “run for real” is the common case
+
+```yaml
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      dry_run:
+        description: Preview changes without applying them
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      DEPLOY_TOKEN:
+        required: true
+```
+
+Dry-run vs real-run logging (when you implement `dry_run`):
+
+| Mode | Goal |
+|---|---|
+| `dry_run: true` | Verbose preview; tool flags like `--dry-run`, `--plan` where applicable |
+| `dry_run: false` | Apply; avoid noisy debug unless diagnosing failures |
+
+## Configurability — bridge callers and composites
+
+Reusable workflows surface **caller-facing** toggles as `workflow_call` inputs and pass them into composites with `with:`. Use **`if:`** on steps (or jobs) to skip entire composite invocations when a feature is off.
+
+- Workflow inputs: prefer **`snake_case`**
+- Composite inputs: typically **`kebab-case`** (pass explicitly in `with:`)
+
+```yaml
+on:
+  workflow_call:
+    inputs:
+      post_plan_comment:
+        type: boolean
+        default: true
+      use_makefile:
+        type: boolean
+        default: true
+
+jobs:
+  plan:
+    steps:
+      - name: Plan (Makefile)
+        if: inputs.use_makefile == true
+        uses: ./composite/terraform/plan-make
+        with:
+          stack: ${{ matrix.stack }}
+
+      - name: Post plan to PR
+        if: always() && inputs.post_plan_comment == true && github.event_name == 'pull_request'
+        uses: ./composite/terraform/post-plan-comment
+        with:
+          stack_name: ${{ matrix.stack }}
+```
+
+## Skip-enabling outputs and conditional jobs
+
+When downstream work should be skipped (nothing to build, no stacks changed, etc.):
+
+- Prefer **`workflow_call` `outputs`** that callers can use in `if:` on dependent jobs, **or**
+- Document patterns already used here (e.g. matrix from JSON, `needs.<job>.outputs.stacks != '[]'`)
+
+For simple yes/no gates, use boolean-style strings `'true'` / `'false'` and names like `has_<noun>`:
+
+```yaml
+on:
+  workflow_call:
+    outputs:
+      has_changes:
+        description: Whether there is work to do (true/false)
+        value: ${{ jobs.detect.outputs.has_changes }}
+```
+
+## Step section titles
+
+When a job has several logical step groups, use section comments:
+
+```yaml
+# ----------------- Setup -----------------
+- name: Checkout
+  uses: actions/checkout@<sha> # v4
+
+# ----------------- Terraform -----------------
+- name: Setup Terraform
+  uses: ./composite/terraform/setup
+```
+
+**Rules:**
+
+- Format: `# ----------------- Title -----------------`
+- Use when there are two or more clear groups in the same job
+- Comment immediately before the first step of the group (no blank line between comment and step)
+
+## Referencing composites from reusable workflows
+
+Understand **two different “repos”** when a reusable workflow in `modules-hub` is called from another repository:
+
+1. **`github` context** — For reusable workflows, GitHub documents that the `github` context is tied to the **caller** workflow (e.g. `github.repository` is the consumer repo). Default **`actions/checkout`** therefore checks out the **caller** — which is what you want when Terraform stacks and app code live in the consumer repo.
+2. **Local composite paths (`uses: ./composite/...`)** — These resolve from the repository (and ref) of the **workflow file** that contains the step — i.e. **`modules-hub`** when the YAML lives here. So external callers can use `uses: <org>/modules-hub/.github/workflows/terraform-plan.yml@v1` and the job will still run step definitions that reference `./composite/terraform/...` from **this** repo at that ref.
+
+Implications:
+
+- **Consumers** should not copy `composite/` into their repo for those steps; they call the **reusable workflow URL** with a pinned `@ref`.
+- **Do not** use `uses: ./composite/...` from a workflow file that lives in **another** repo unless that repo actually contains the same composite layout (rare; prefer calling `modules-hub`’s workflow instead).
+- If a step needs files from **both** repos, combine default checkout (caller) with explicit `actions/checkout` of `modules-hub` only when truly necessary — most Terraform flows here rely on caller checkout + hub composites only.
+
+## Secrets management
+
+Secrets always come from the **caller** — never hardcode values in reusable workflows.
+
+```yaml
+# Caller
+jobs:
+  release:
+    uses: <org>/modules-hub/.github/workflows/release.yml@v1
+    secrets:
+      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+# Reusable workflow
+on:
+  workflow_call:
+    secrets:
+      RELEASE_TOKEN:
+        required: true
+```
+
+Use `secrets: inherit` only when appropriate and safe for the trigger (never blindly with `pull_request_target` from forks — see Security).
+
+## Naming conventions
+
+- **Descriptive, kebab-case file names:** `terraform-plan.yml`, `validate.yml`, `self-validate.yml`
+- Avoid generic names like `ci.yml` or `pipeline.yml` unless the scope is truly repo-wide and documented
+- Extension **`.yml`** only, not `.yaml`, for workflows and action metadata
+
+## Documentation
+
+- **Terraform** consumers: maintain or add guides under **`docs/terraform/`** (see root `README.md`) when behavior is non-trivial
+- **Hub / shared actions:** use **`docs/hub/`** when present
+- **Per-workflow** `docs/<same-name-as-workflow>.md` is optional; prefer the area docs above when they already cover usage
+- Do not require a third-party org branding header; keep docs consistent with Bedatty Engineering / this repo
+
+### Usage example ref policy
+
+In docs and README examples, avoid recommending **`@main`** for production:
+
+```yaml
+# Testing — branch
+uses: <org>/modules-hub/.github/workflows/terraform-plan.yml@chore/my-branch
+
+# Production — semver tag
+uses: <org>/modules-hub/.github/workflows/terraform-plan.yml@v1
+```
+
+## Anti-patterns
+
+```yaml
+# ❌ Huge inline script in workflow — extract to composite or script with review
+run: |
+  200 lines of bash ...
+
+# ❌ Composite with jobs: (invalid — composites are steps only)
+runs:
+  using: composite
+  jobs: ...
+
+# ❌ Using uses: ./composite/... from a workflow YAML that lives in the consumer repo
+#    (local ./ actions resolve from the repo that owns that workflow file — use <org>/modules-hub/.github/workflows/... instead)
+
+# ❌ Third-party action at a mutable ref
+uses: some-owner/some-action@main
+```
+
+## Security rules
+
+- **Pin third-party actions by commit SHA** where feasible; add `# vX.Y.Z` for readability
+- **Composites and workflows from this repo** use **version tags** for external refs (`@v1`, …)
+- Never use `@main` / `@master` for third-party actions
+- Do not interpolate untrusted input directly into `run:` (see below)
+- Do not print secrets (`echo`, env dumps, step summaries)
+- Heavy branching and policy belong in the workflow for visibility in logs
+
+### pull_request_target — NEVER checkout fork code
+
+- Do not checkout the PR head from forks in `pull_request_target` and then run their code with elevated token
+- If `pull_request_target` is required (labels, comments on base), avoid executing fork-supplied build/test scripts
+- Prefer `pull_request` when possible
+- Do not use `secrets: inherit` in ways that expose all secrets to untrusted fork code
+
+### Expression injection — sanitize untrusted inputs in `run:`
+
+Avoid passing these directly inside `run:` script bodies; use `env:` indirection:
+
+```yaml
+# ❌ Injectable in run: body
+${{ github.event.pull_request.title }}
+${{ github.event.pull_request.body }}
+${{ github.head_ref }}
+# ... (issue/comment/commit/discussion fields — same idea)
+```
+
+```yaml
+# ✅ Pass through env, reference shell variable
+env:
+  PR_TITLE: ${{ github.event.pull_request.title }}
+run: echo "$PR_TITLE"
+```
+
+### workflow_run — treat artifacts as untrusted
+
+- Do not trust artifact contents from another workflow without validation
+- Never extract and run scripts from artifacts without verification
+
+### Permissions — least privilege
+
+- Set explicit `permissions:` at workflow level where possible
+- Default narrow (`contents: read`); escalate per job (e.g. `pull-requests: write` only on jobs that comment)
+- Avoid `write-all` and avoid leaving permissions implicit when broad defaults are unsafe
+
+```yaml
+permissions:
+  contents: read
+
+jobs:
+  comment:
+    permissions:
+      pull-requests: write
+```
+
+### Secrets in fork contexts
+
+- Fork `pull_request` runs do not receive secrets by default — do not bypass that casually
+- If both secrets and untrusted code are needed, split trusted vs untrusted workflows (`pull_request` + `workflow_run` pattern)
+
+### Script injection via branches / labels
+
+- Quote variables in shell; branch names can contain metacharacters
+
+```yaml
+env:
+  BRANCH_NAME: ${{ github.head_ref }}
+run: echo "$BRANCH_NAME"
+```
+
+### Self-hosted runners
+
+- Do not use self-hosted runners for `pull_request` / `pull_request_target` from **public** forks unless you fully isolate untrusted code
+- Safer triggers: `push`, `workflow_dispatch`, `schedule`, internal PRs only (org policy)
+
+### Reserved names — secrets and inputs
+
+Do not declare custom `secrets:` or `inputs:` names that collide with GitHub reserved prefixes:
+
+| Prefix | Examples |
+|---|---|
+| `GITHUB_*` | `GITHUB_TOKEN`, `GITHUB_SHA` |
+| `ACTIONS_*` | `ACTIONS_RUNTIME_TOKEN` |
+| `RUNNER_*` | `RUNNER_OS` |
+
+For a custom PAT from the caller, use names like `MANAGE_TOKEN`, `BOT_TOKEN`, or `GH_PAT`.
+
+```yaml
+# ❌
+secrets:
+  GITHUB_TOKEN:
+    required: true
+
+# ✅
+secrets:
+  RELEASE_TOKEN:
+    required: true
+```

@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["Validate"]
     types: [completed]
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
   contents: write
@@ -15,5 +15,4 @@ jobs:
   release:
     if: github.event.workflow_run.conclusion == 'success'
     uses: ./.github/workflows/release.yml
-    secrets:
-      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+    secrets: inherit

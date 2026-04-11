@@ -1,4 +1,4 @@
-name: Mask Terraform Cloudflare-related secrets
+name: Mask Terraform Cloudflare-related secrets [composite]
 description: Registers optional secret values with the runner log masker (no values printed).
 
 secrets:
