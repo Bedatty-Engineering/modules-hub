@@ -1,4 +1,4 @@
-name: Post Terraform plan PR comment
+name: Post Terraform plan PR comment [composite]
 description: Comment on the current PR with outcome and collapsible HTML-wrapped plan text.
 
 inputs:

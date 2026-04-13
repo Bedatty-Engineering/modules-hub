@@ -1,4 +1,4 @@
-name: Terraform destroy (directory)
+name: Terraform destroy (directory) [composite]
 description: Init and destroy in a Terraform root module. Requires Terraform on PATH (run setup composite first).
 
 inputs:

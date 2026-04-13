@@ -1,4 +1,4 @@
-name: Setup Terraform
+name: Setup Terraform [composite]
 description: Install a pinned Terraform CLI version.
 
 inputs:

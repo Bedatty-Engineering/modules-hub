@@ -1,4 +1,4 @@
-name: Terraform plan via Makefile
+name: Terraform plan via Makefile [composite]
 description: Runs make plan with output copied to a workspace file for PR comments.
 
 inputs:

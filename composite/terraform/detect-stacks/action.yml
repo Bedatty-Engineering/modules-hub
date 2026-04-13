@@ -1,4 +1,4 @@
-name: Detect changed Terraform stacks
+name: Detect changed Terraform stacks [composite]
 description: |
   Compare two Git refs and emit a JSON array of stack folder names (second segment under stacks_dir).
   If anything under modules_dir changed, lists every stack in stacks_dir.

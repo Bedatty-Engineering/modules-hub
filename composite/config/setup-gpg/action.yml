@@ -1,4 +1,4 @@
-name: Setup GPG signing
+name: Setup GPG signing [composite]
 description: >
   Imports a GPG private key, pre-caches the passphrase in gpg-agent,
   and configures git to sign all commits and tags automatically.

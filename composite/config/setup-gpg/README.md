@@ -1,4 +1,7 @@
-# setup-gpg
+<table><tr>
+<td><img src="https://github.com/Bedatty-Engineering.png" alt="Bedatty Engineering" width="80" /></td>
+<td><h1>setup-gpg</h1></td>
+</tr></table>
 
 Composite action that imports a GPG private key, pre-caches the passphrase in
 `gpg-agent`, and configures git to sign all commits and tags automatically.

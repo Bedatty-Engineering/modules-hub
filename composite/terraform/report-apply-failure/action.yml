@@ -1,4 +1,4 @@
-name: Report Terraform apply failure
+name: Report Terraform apply failure [composite]
 description: Opens a GitHub issue when apply fails (incident-style notification).
 
 inputs:

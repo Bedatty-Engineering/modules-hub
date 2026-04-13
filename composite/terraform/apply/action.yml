@@ -1,4 +1,4 @@
-name: Terraform apply (directory)
+name: Terraform apply (directory) [composite]
 description: Init and apply in a Terraform root module. Requires Terraform on PATH (run setup composite first).
 
 inputs:

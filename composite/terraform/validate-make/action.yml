@@ -1,4 +1,4 @@
-name: Terraform validate via Makefile
+name: Terraform validate via Makefile [composite]
 description: Runs make validate STACK=<stack> from the repository root.
 
 inputs:

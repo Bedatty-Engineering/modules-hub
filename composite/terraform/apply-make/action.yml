@@ -1,4 +1,4 @@
-name: Terraform apply via Makefile
+name: Terraform apply via Makefile [composite]
 description: Runs make apply-auto STACK=<stack> (non-interactive).
 
 inputs:
