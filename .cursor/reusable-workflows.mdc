@@ -28,8 +28,9 @@ Before large inline shell in a workflow, search the [Marketplace](https://github
 
 - Prefer maintained actions over ad-hoc scripts for non-trivial logic
 - If wrapping is needed, add or extend a composite under `composite/<domain>/<name>/` and call it from the workflow (see `.cursor/composite-actions.mdc`)
-- **Third-party actions** should be pinned by **commit SHA**, with a `# vX.Y.Z` comment for humans. If `.github/dependabot.yml` exists for Actions, use it to bump SHAs
-- **Composites from this repo** are referenced by callers as `<org>/modules-hub/composite/...` with a **release tag** (e.g. `@v1`) or a branch for testing — not `@main` for production examples
+- **Third-party actions** (outside the org) must be pinned by **commit SHA**, with a `# vX.Y.Z` comment for humans. If `.github/dependabot.yml` exists for Actions, use it to bump SHAs
+- **Actions from within this org** (`Bedatty-Engineering/*`) may be pinned by **release tag** (e.g. `@v1`) — SHA is still acceptable but not required
+- **Composites from this repo** in reusable workflows that may be called from **external repos**: use the full path `Bedatty-Engineering/modules-hub/composite/<domain>/<name>@<ref>` — GitHub resolves `./composite/...` against the **caller's** filesystem, so a local path fails for external callers. The `./` shorthand is only safe in `self-*` entrypoint workflows that always run within this repo
 - Never use `@main` or `@master` for third-party actions
 - Document non-obvious action choices in **`docs/terraform/`**, **`docs/hub/`**, or the relevant **`README.md`**, depending on area (see root `README.md`)
 
@@ -246,13 +247,13 @@ When a job has several logical step groups, use section comments:
 
 Understand **two different “repos”** when a reusable workflow in `modules-hub` is called from another repository:
 
-1. **`github` context** — For reusable workflows, GitHub documents that the `github` context is tied to the **caller** workflow (e.g. `github.repository` is the consumer repo). Default **`actions/checkout`** therefore checks out the **caller** — which is what you want when Terraform stacks and app code live in the consumer repo.
-2. **Local composite paths (`uses: ./composite/...`)** — These resolve from the repository (and ref) of the **workflow file** that contains the step — i.e. **`modules-hub`** when the YAML lives here. So external callers can use `uses: <org>/modules-hub/.github/workflows/terraform-plan.yml@v1` and the job will still run step definitions that reference `./composite/terraform/...` from **this** repo at that ref.
+1. **`github` context** — For reusable workflows, the `github` context is tied to the **caller** workflow (e.g. `github.repository` is the consumer repo). Default **`actions/checkout`** therefore checks out the **caller** — which is what you want when Terraform stacks and app code live in the consumer repo.
+2. **Local composite paths (`uses: ./composite/...`)** — GitHub resolves `./` against the **caller’s** checkout, **not** the reusable workflow’s repo. This means `./composite/...` will **fail** when the workflow is called from an external repo. Use the full path with a ref instead: `Bedatty-Engineering/modules-hub/composite/<domain>/<name>@<ref>`. The `./` shorthand is only safe in `self-*` entrypoint workflows that always run within this repo.
 
 Implications:
 
 - **Consumers** should not copy `composite/` into their repo for those steps; they call the **reusable workflow URL** with a pinned `@ref`.
-- **Do not** use `uses: ./composite/...` from a workflow file that lives in **another** repo unless that repo actually contains the same composite layout (rare; prefer calling `modules-hub`’s workflow instead).
+- **Do not** use `uses: ./composite/...` inside reusable workflows — GitHub resolves `./` against the caller’s checkout, so the composite won’t be found. Use `Bedatty-Engineering/modules-hub/composite/...@<ref>` instead.
 - If a step needs files from **both** repos, combine default checkout (caller) with explicit `actions/checkout` of `modules-hub` only when truly necessary — most Terraform flows here rely on caller checkout + hub composites only.
 
 ## Secrets management
@@ -317,8 +318,26 @@ runs:
 # ❌ Using uses: ./composite/... from a workflow YAML that lives in the consumer repo
 #    (local ./ actions resolve from the repo that owns that workflow file — use <org>/modules-hub/.github/workflows/... instead)
 
+# ❌ `./composite/...` in a reusable workflow — GitHub resolves ./ against the caller's checkout, not this repo
+uses: ./composite/hub/actionlint
+
 # ❌ Third-party action at a mutable ref
 uses: some-owner/some-action@main
+
+# ❌ Third-party action pinned by tag instead of SHA — tags can be force-pushed
+uses: some-owner/some-action@v3
+
+# ✅ Third-party action pinned by SHA with version comment
+uses: some-owner/some-action@abc1234def5678 # v3
+
+# ✅ Org-internal composite in a reusable workflow — full path with tag
+uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@v1
+
+# ✅ Org-internal workflow pinned by tag
+uses: Bedatty-Engineering/modules-hub/.github/workflows/validate.yml@v1
+
+# ✅ `./composite/...` ONLY inside self-* entrypoints (same-repo calls)
+uses: ./composite/hub/actionlint  # valid only in self-* workflows
 ```
 
 ## Security rules

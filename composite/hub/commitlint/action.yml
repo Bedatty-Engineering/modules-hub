@@ -1,0 +1,39 @@
+name: Lint commit messages [composite]
+description: >
+  Sets up Node.js, installs npm dependencies, and runs commitlint
+  on the commit range of a pull request.
+
+inputs:
+  pr-base-sha:
+    description: PR base branch SHA (github.event.pull_request.base.sha).
+    required: true
+  pr-head-sha:
+    description: PR head commit SHA (github.event.pull_request.head.sha).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: "lts/*"
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Lint commits
+      shell: bash
+      env:
+        PR_BASE_SHA: ${{ inputs.pr-base-sha }}
+        PR_HEAD_SHA: ${{ inputs.pr-head-sha }}
+      run: |
+        set -euo pipefail
+        BASE=$(git merge-base "$PR_BASE_SHA" "$PR_HEAD_SHA")
+        echo "Linting commit range: ${BASE}..${PR_HEAD_SHA}"
+        npx commitlint \
+          --from "${BASE}" \
+          --to   "${PR_HEAD_SHA}" \
+          --verbose
