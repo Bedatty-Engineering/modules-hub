@@ -15,55 +15,28 @@ jobs:
     if: inputs.is_pull_request
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "lts/*"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
       - name: Lint commits
-        run: |
-          npx commitlint \
-            --from ${{ github.event.pull_request.base.sha }} \
-            --to   ${{ github.event.pull_request.head.sha }} \
-            --verbose
+        uses: Bedatty-Engineering/modules-hub/composite/hub/commitlint@dev
+        with:
+          pr-base-sha: ${{ github.event.pull_request.base.sha }}
+          pr-head-sha: ${{ github.event.pull_request.head.sha }}
 
   validate-actions:
     name: Validate workflow & action metadata
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Install actionlint
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- 1.7.4
-          sudo mv actionlint /usr/local/bin/
-
+      # ----------------- Lint -----------------
       - name: Lint GitHub workflows
-        run: actionlint -color
+        uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@dev
 
-      - name: Verify Terraform composite action.yml files exist
-        run: |
-          set -euo pipefail
-          BASE=composite/terraform
-          for d in \
-            detect-stacks mask-secrets setup \
-            verify-tfc-token init-make validate-make \
-            plan-make apply-make \
-            post-plan-comment report-apply-failure \
-            plan apply destroy; do
-            test -f "$BASE/$d/action.yml" || { echo "Missing $BASE/$d/action.yml"; exit 1; }
-          done
-          echo "All Terraform composite action.yml files present."
-
+      # ----------------- Verify -----------------
       - name: Verify release config
         run: |
           set -euo pipefail

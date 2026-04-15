@@ -3,6 +3,5 @@
 .vscode/
 *.swp
 *.log
-actionlint
 node_modules/
 .codex

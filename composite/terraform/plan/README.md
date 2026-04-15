@@ -6,10 +6,10 @@
 Runs `terraform init`, `validate`, and `plan`. Install Terraform first (e.g. `composite/terraform/setup`). Plan output is teed to `plan_file` (default `plan-output.txt`).
 
 ```yaml
-- uses: Bedatty-Engineering/modules-hub/composite/terraform/setup@main
+- uses: Bedatty-Engineering/modules-hub/composite/terraform/setup@v1
   with:
     terraform_version: "1.7.5"
-- uses: Bedatty-Engineering/modules-hub/composite/terraform/plan@main
+- uses: Bedatty-Engineering/modules-hub/composite/terraform/plan@v1
   with:
     working_directory: stacks/my-stack
 ```
