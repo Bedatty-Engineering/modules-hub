@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.0.0...v1.0.1) (2026-04-15)
+
+### Bug Fixes
+
+* **modules:** workflows config ([#11](https://github.com/Bedatty-Engineering/modules-hub/issues/11)) ([3977d90](https://github.com/Bedatty-Engineering/modules-hub/commit/3977d90663449a92fe7a2645c7f41fc8dcdbdf86)), closes [#4](https://github.com/Bedatty-Engineering/modules-hub/issues/4) [#2](https://github.com/Bedatty-Engineering/modules-hub/issues/2) [#7](https://github.com/Bedatty-Engineering/modules-hub/issues/7)
+
 # 1.0.0 (2026-04-06)
 
 
