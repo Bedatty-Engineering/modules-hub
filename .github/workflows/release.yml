@@ -42,7 +42,7 @@ jobs:
         run: npm ci
 
       - name: Setup GPG signing
-        uses: ./composite/config/setup-gpg
+        uses: Bedatty-Engineering/modules-hub/composite/config/setup-gpg@dev
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}

@@ -1,0 +1,26 @@
+name: Lint GitHub Actions workflows [composite]
+description: >
+  Downloads and installs actionlint, then lints all GitHub Actions
+  workflow files in the repository.
+
+inputs:
+  version:
+    description: actionlint version to install.
+    required: false
+    default: "1.7.4"
+
+runs:
+  using: composite
+  steps:
+    - name: Install actionlint
+      shell: bash
+      env:
+        ACTIONLINT_VERSION: ${{ inputs.version }}
+      run: |
+        curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash \
+          | bash -s -- "$ACTIONLINT_VERSION"
+        sudo mv actionlint /usr/local/bin/
+
+    - name: Lint workflows
+      shell: bash
+      run: actionlint -color
