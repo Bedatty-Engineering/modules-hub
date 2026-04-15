@@ -32,8 +32,9 @@ Before writing custom steps from scratch, search the [Marketplace](https://githu
 
 - Prefer a well-maintained marketplace action over custom shell scripting for non-trivial logic
 - Wrap it in a composite under `composite/<domain>/<name>/` if it needs input normalization or extra steps
-- **Third-party actions** (outside this repo / Bedatty-owned actions) **should be pinned by commit SHA**, not by tag — add a `# vX.Y.Z` comment for readability (e.g. `uses: actions/checkout@abc123 # v4`). Tags can be moved or force-pushed upstream. If the repo uses Dependabot for Actions, SHA updates can be automated there.
-- **Actions from this repository** (`<org>/modules-hub/composite/...`) are consumed with **release tags** (e.g. `@v1`, `@v1.2.3`) or a named branch for testing — mirror how existing READMEs in this repo document usage
+- **Third-party actions** (outside the org) **must be pinned by commit SHA**, not by tag — add a `# vX.Y.Z` comment for readability (e.g. `uses: actions/checkout@abc123 # v4`). Tags can be moved or force-pushed upstream. If the repo uses Dependabot for Actions, SHA updates can be automated there.
+- **Actions from within this org** (`Bedatty-Engineering/*`) may be pinned by **release tag** (e.g. `@v1`) — SHA is still acceptable but not required
+- **Local composites** referenced via `./composite/...` are only safe in `self-*` entrypoint workflows that run within this repo. In reusable workflows callable from external repos, GitHub resolves `./` against the **caller's** checkout — use the full path `Bedatty-Engineering/modules-hub/composite/<domain>/<name>@<ref>` instead
 - Never use `@main` or `@master` for third-party actions
 - Document in the composite `README.md` why a third-party action was chosen (and any version pin rationale)
 
