@@ -69,10 +69,14 @@ runs:
                 --local-user "$KEY_ID" --clearsign > /dev/null
 
         # Configure git signing (global so every git invocation inherits it,
-        # including those from @semantic-release/git which change cwd)
+        # including those from @semantic-release/git which change cwd).
+        # Intentionally do NOT set `tag.gpgsign = true`: semantic-release
+        # creates lightweight tags via `git tag <name> <sha>` (no -m). With
+        # `tag.gpgsign` enabled, git would promote it to a signed annotated
+        # tag, require a message, and open $EDITOR (vi) on the runner —
+        # hanging the release step indefinitely.
         git config --global user.signingkey "$KEY_ID"
         git config --global commit.gpgsign true
-        git config --global tag.gpgsign true
         git config --global gpg.program gpg
 
         echo "key_id=$KEY_ID" >> "$GITHUB_OUTPUT"
