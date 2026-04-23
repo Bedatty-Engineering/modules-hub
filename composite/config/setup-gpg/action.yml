@@ -35,27 +35,45 @@ runs:
       run: |
         set -euo pipefail
 
+        # Ensure gpg dir exists
+        mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
+
+        # Force loopback pinentry for every gpg invocation (including those
+        # spawned by git commit -S / git tag -s). Without this, gpg-agent
+        # can block on a missing pinentry and hang the step indefinitely.
+        {
+          echo 'pinentry-mode loopback'
+          echo 'batch'
+        } > ~/.gnupg/gpg.conf
+
+        {
+          echo 'allow-loopback-pinentry'
+          echo 'default-cache-ttl 7200'
+          echo 'max-cache-ttl 7200'
+        } > ~/.gnupg/gpg-agent.conf
+
+        gpgconf --kill gpg-agent || true
+
         # Import private key
         echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-
-        # Allow passphrase via loopback so gpg-agent doesn't prompt interactively
-        mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
-        echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
-        gpgconf --kill gpg-agent
 
         # Resolve the long key ID from the imported secret key
         KEY_ID=$(gpg --list-secret-keys --keyid-format=long \
           | awk '/^sec/{split($2,a,"/"); print a[2]; exit}')
 
-        # Pre-cache passphrase with a dummy sign so git never gets a prompt
-        printf '%s' "$GPG_PASSPHRASE" \
-          | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
-                --local-user "$KEY_ID" --sign --output /dev/null /dev/null 2>/dev/null
+        # Pre-cache passphrase by signing real content. Signing /dev/null is
+        # a no-op on some gpg versions and does not populate the agent cache.
+        echo "cache" \
+          | gpg --batch --yes --pinentry-mode loopback \
+                --passphrase "$GPG_PASSPHRASE" \
+                --local-user "$KEY_ID" --clearsign > /dev/null
 
-        # Configure git signing
-        git config user.signingkey "$KEY_ID"
-        git config commit.gpgsign true
-        git config tag.gpgsign true
+        # Configure git signing (global so every git invocation inherits it,
+        # including those from @semantic-release/git which change cwd)
+        git config --global user.signingkey "$KEY_ID"
+        git config --global commit.gpgsign true
+        git config --global tag.gpgsign true
+        git config --global gpg.program gpg
 
         echo "key_id=$KEY_ID" >> "$GITHUB_OUTPUT"
 
@@ -69,8 +87,8 @@ runs:
         LOGIN=$(gh api user --jq .login)
         EMAIL=$(gh api user --jq '.email // empty')
         EMAIL="${EMAIL:-${LOGIN}@users.noreply.github.com}"
-        git config user.name  "$LOGIN"
-        git config user.email "$EMAIL"
+        git config --global user.name  "$LOGIN"
+        git config --global user.email "$EMAIL"
 
         # Override semantic-release-bot defaults used by @semantic-release/git
         {
