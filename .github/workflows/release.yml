@@ -72,4 +72,11 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          # workflow_run triggers always run on the default branch, so the
+          # default GITHUB_REF* values point at `main` regardless of which
+          # branch actually triggered the release. semantic-release reads
+          # these to pick the release branch from .releaserc.json, so we
+          # override them to match the ref we actually checked out.
+          GITHUB_REF: refs/heads/${{ inputs.ref }}
+          GITHUB_REF_NAME: ${{ inputs.ref }}
         run: npx semantic-release
