@@ -68,6 +68,19 @@ Add a `dry_run` input only when a workflow **mutates or destroys** external stat
 
 - Default integration branches in CI today include **`main`** and **`dev`** (see `self-validate.yml`). Do not assume a `develop` branch unless the project adds it.
 - Follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject` — aligned with **commitlint** in this repo (`commitlint.config.js`).
+- **Scope is mandatory** and must be one of the values enforced by `commitlint.config.js` (`scope-enum`). The authoritative list lives in that file; the current mapping is:
+
+  | Scope | Area |
+  |---|---|
+  | `terraform` | `composite/terraform/**`, Terraform workflows |
+  | `config`    | `composite/config/**`, top-level workflow files (`self-*.yml`, `validate.yml`, `release.yml`), GitHub metadata |
+  | `hub`       | `composite/hub/**` |
+  | `modules`   | `composite/modules/**` |
+  | `release`   | `.releaserc.json`, `package*.json`, `commitlint.config.js` |
+  | `deps`      | dependency bumps (Dependabot uses `chore(deps): `) |
+  | `docs`      | `docs/**`, READMEs, `AGENTS.md` |
+
+  Generic scopes such as `ci`, `test`, `build` are **not** accepted. When in doubt, read `commitlint.config.js` and recent commit history before crafting the message.
 
 ### Documentation and comments *(low churn)*
 

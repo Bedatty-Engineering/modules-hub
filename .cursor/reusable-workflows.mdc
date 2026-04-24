@@ -42,6 +42,8 @@ After you add or change **`uses:`** on an external action in `.github/workflows/
 2. If a **new `owner/*` namespace** is not covered by **`groups.patterns`**, add or extend **`groups`**; add **`ignore`** only when an action must not auto-update. Do **not** maintain a detailed per-action inventory in YAML comments—keep the header **generic** (see **AGENTS.md — Dependabot maintenance**).  
 3. Keep Dependabot commit **`prefix: "chore(deps): "`** for **commitlint**.
 
+**Commit scopes:** every commit must declare a scope from the allowlist in `commitlint.config.js` (`scope-enum`). Workflow and composite changes typically use `config`. Generic scopes like `ci`, `test`, `build` are rejected. See **AGENTS.md — Branches and commits**.
+
 Only implement from scratch when nothing suitable exists or security/customization requires it.
 
 ---

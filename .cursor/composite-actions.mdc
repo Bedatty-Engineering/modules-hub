@@ -46,6 +46,8 @@ After you add or change **`uses:`** on an external action in `action.yml`:
 2. If a **new `owner/*` namespace** is not covered by **`groups.patterns`**, add or extend **`groups`**; add **`ignore`** only when an action must not auto-update. Do **not** grow a long per-action comment block in that file—keep the YAML header **generic** (see **AGENTS.md — Dependabot maintenance**).  
 3. Keep Dependabot commit **`prefix: "chore(deps): "`** for **commitlint**.
 
+**Commit scopes:** every commit must declare a scope from the allowlist in `commitlint.config.js` (`scope-enum`). Composite changes typically use `config`, `hub`, `modules`, or `terraform` depending on the domain. Generic scopes like `ci`, `test`, `build` are rejected. See **AGENTS.md — Branches and commits**.
+
 Only implement from scratch when no suitable action exists or when existing ones do not meet security or customization requirements.
 
 ---
