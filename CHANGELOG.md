@@ -1,3 +1,14 @@
+## [1.1.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.0.2...v1.1.0) (2026-04-24)
+
+### Features
+
+* **config:** enable stg branch for validate/release pipeline ([7b74916](https://github.com/Bedatty-Engineering/modules-hub/commit/7b749164bd1bdc4282eee86b82cb6387da426fbd))
+
+### Bug Fixes
+
+* **config:** export GITHUB_REF in shell to bypass runner injection ([bf23fce](https://github.com/Bedatty-Engineering/modules-hub/commit/bf23fce242ba16cf79c180c167fc449ca98739e0))
+* **release:** dev-stg-main promotion with floating vN tag ([#30](https://github.com/Bedatty-Engineering/modules-hub/issues/30)) ([84f2a69](https://github.com/Bedatty-Engineering/modules-hub/commit/84f2a69d08c05111c7d576d926c60a0ec9fb29d0))
+
 ## [1.0.2](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.0.1...v1.0.2) (2026-04-24)
 
 ### Bug Fixes
