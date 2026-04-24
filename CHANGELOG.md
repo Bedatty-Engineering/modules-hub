@@ -1,3 +1,9 @@
+## [1.0.2](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.0.1...v1.0.2) (2026-04-24)
+
+### Bug Fixes
+
+* **release:** override GITHUB_REF so semantic-release sees target branch ([138595d](https://github.com/Bedatty-Engineering/modules-hub/commit/138595d15a51139bc8443304ae4ad657783a1aa3))
+
 ## [1.0.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.0.0...v1.0.1) (2026-04-23)
 
 ### Bug Fixes
