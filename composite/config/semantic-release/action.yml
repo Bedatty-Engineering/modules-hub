@@ -1,0 +1,52 @@
+name: Semantic release [composite]
+description: >
+  Sets up Node.js, installs dependencies, and runs semantic-release against
+  the given branch. Overrides GITHUB_REF/GITHUB_REF_NAME at runtime so
+  workflow_run-triggered invocations release from the triggering branch
+  rather than the runner default.
+
+inputs:
+  target_ref:
+    description: Branch name semantic-release should release from.
+    required: true
+  github_token:
+    description: Token with permissions to push tags, commits, and create releases.
+    required: true
+  node_version:
+    description: Node.js version passed to actions/setup-node.
+    required: false
+    default: "lts/*"
+
+runs:
+  using: composite
+  steps:
+    # ----------------- Setup -----------------
+    - name: Setup Node.js
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    # ----------------- Release -----------------
+    - name: Release
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        TARGET_REF: ${{ inputs.target_ref }}
+      # `workflow_run`-triggered runs execute in the default branch's
+      # context, so the runner pre-populates GITHUB_REF / GITHUB_REF_NAME
+      # with the default branch. Those are among the "default" env vars
+      # the runner re-asserts after the step's `env:` block, so declaring
+      # them in `env:` does not stick — `env-ci` ends up reading `main`
+      # regardless of which branch actually triggered the release.
+      # `export` inside `run:` happens after the runner injection, so the
+      # values are actually visible to child processes.
+      run: |
+        export GITHUB_REF="refs/heads/${TARGET_REF}"
+        export GITHUB_REF_NAME="${TARGET_REF}"
+        echo "Releasing from branch: ${GITHUB_REF_NAME} (GITHUB_REF=${GITHUB_REF})"
+        npx semantic-release
