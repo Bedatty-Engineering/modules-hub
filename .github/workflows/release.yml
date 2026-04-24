@@ -80,3 +80,41 @@ jobs:
           GITHUB_REF: refs/heads/${{ inputs.ref }}
           GITHUB_REF_NAME: ${{ inputs.ref }}
         run: npx semantic-release
+
+      - name: Update floating major tag
+        if: inputs.ref == 'main'
+        shell: bash
+        env:
+          TARGET_REF: ${{ inputs.ref }}
+        # After a stable release on main, move `v<major>` to point at the
+        # latest non-prerelease tag. Consumers can then pin composites
+        # with `@v1` and always resolve to the latest 1.x.x release.
+        # Runs only when the triggering branch is main, so alpha/beta
+        # releases on dev/stg never move the floating major tag.
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force origin
+
+          LATEST_STABLE=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' \
+            | grep -Ev -- '-(alpha|beta|rc)\.' \
+            | sort -V \
+            | tail -n1 || true)
+
+          if [ -z "$LATEST_STABLE" ]; then
+            echo "No stable tag found; skipping floating major tag update."
+            exit 0
+          fi
+
+          MAJOR="${LATEST_STABLE%%.*}"
+          TARGET_SHA=$(git rev-list -n1 "$LATEST_STABLE")
+
+          CURRENT_SHA=$(git rev-parse -q --verify "refs/tags/${MAJOR}" || true)
+          if [ "$CURRENT_SHA" = "$TARGET_SHA" ]; then
+            echo "Floating tag ${MAJOR} already at ${TARGET_SHA}; nothing to do."
+            exit 0
+          fi
+
+          echo "Updating ${MAJOR} -> ${LATEST_STABLE} (${TARGET_SHA})"
+          git tag -f "$MAJOR" "$TARGET_SHA"
+          git push --force origin "refs/tags/${MAJOR}"
