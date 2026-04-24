@@ -13,7 +13,7 @@ on:
       GPG_PRIVATE_KEY:
         required: true
       GPG_PASSPHRASE:
-        required: true
+        required: false
 
 permissions:
   contents: write
@@ -32,35 +32,10 @@ jobs:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Materialize local release branches
-        shell: bash
-        env:
-          TARGET_REF: ${{ inputs.ref }}
-        run: |
-          set -euo pipefail
-          # semantic-release iterates over every branch declared in
-          # .releaserc.json running `git tag --merged <name>`, which requires
-          # a local ref. actions/checkout only materializes the target branch;
-          # create locals for every OTHER release branch that exists on
-          # origin. The currently checked-out branch is skipped because
-          # `git branch -f` refuses to update the branch in use by the worktree.
-          for b in main dev stg prd; do
-            if [ "$b" = "$TARGET_REF" ]; then
-              continue
-            fi
-            if git show-ref --verify --quiet "refs/remotes/origin/$b"; then
-              git branch -f "$b" "origin/$b"
-            fi
-          done
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - name: Materialize release branches
+        uses: Bedatty-Engineering/modules-hub/composite/config/materialize-release-branches@dev
         with:
-          node-version: "lts/*"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
+          current_ref: ${{ inputs.ref }}
 
       - name: Setup GPG signing
         uses: Bedatty-Engineering/modules-hub/composite/config/setup-gpg@dev
@@ -69,14 +44,12 @@ jobs:
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           git_identity_token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          # workflow_run triggers always run on the default branch, so the
-          # default GITHUB_REF* values point at `main` regardless of which
-          # branch actually triggered the release. semantic-release reads
-          # these to pick the release branch from .releaserc.json, so we
-          # override them to match the ref we actually checked out.
-          GITHUB_REF: refs/heads/${{ inputs.ref }}
-          GITHUB_REF_NAME: ${{ inputs.ref }}
-        run: npx semantic-release
+      - name: Semantic release
+        uses: Bedatty-Engineering/modules-hub/composite/config/semantic-release@dev
+        with:
+          target_ref: ${{ inputs.ref }}
+          github_token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Update floating major tag
+        if: inputs.ref == 'main'
+        uses: Bedatty-Engineering/modules-hub/composite/config/update-floating-major-tag@dev
