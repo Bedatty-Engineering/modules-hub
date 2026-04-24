@@ -1,0 +1,65 @@
+name: Update floating major tag [composite]
+description: >
+  Moves the floating `v<major>` tag to point at the latest non-prerelease
+  release tag. Callers can then pin consumers with `@v1` and always resolve
+  to the newest 1.x.x release.
+
+inputs:
+  tag_glob:
+    description: Glob used to list candidate release tags.
+    required: false
+    default: "v[0-9]*.[0-9]*.[0-9]*"
+  prerelease_pattern:
+    description: Extended regex identifying prerelease tags to exclude.
+    required: false
+    default: "-(alpha|beta|rc)\\."
+
+outputs:
+  has_update:
+    description: Whether the floating tag was moved (`true` / `false`).
+    value: ${{ steps.update.outputs.has_update }}
+  latest_stable:
+    description: Resolved latest stable tag (empty when no stable tag exists).
+    value: ${{ steps.update.outputs.latest_stable }}
+
+runs:
+  using: composite
+  steps:
+    - name: Update floating major tag
+      id: update
+      shell: bash
+      env:
+        TAG_GLOB: ${{ inputs.tag_glob }}
+        PRERELEASE_PATTERN: ${{ inputs.prerelease_pattern }}
+      run: |
+        set -euo pipefail
+
+        git fetch --tags --force origin
+
+        LATEST_STABLE=$(git tag -l "$TAG_GLOB" \
+          | grep -Ev -- "$PRERELEASE_PATTERN" \
+          | sort -V \
+          | tail -n1 || true)
+
+        echo "latest_stable=${LATEST_STABLE}" >> "$GITHUB_OUTPUT"
+
+        if [ -z "$LATEST_STABLE" ]; then
+          echo "No stable tag found; skipping floating major tag update."
+          echo "has_update=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        MAJOR="${LATEST_STABLE%%.*}"
+        TARGET_SHA=$(git rev-list -n1 "$LATEST_STABLE")
+
+        CURRENT_SHA=$(git rev-parse -q --verify "refs/tags/${MAJOR}" || true)
+        if [ "$CURRENT_SHA" = "$TARGET_SHA" ]; then
+          echo "Floating tag ${MAJOR} already at ${TARGET_SHA}; nothing to do."
+          echo "has_update=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        echo "Updating ${MAJOR} -> ${LATEST_STABLE} (${TARGET_SHA})"
+        git tag -f "$MAJOR" "$TARGET_SHA"
+        git push --force origin "refs/tags/${MAJOR}"
+        echo "has_update=true" >> "$GITHUB_OUTPUT"
