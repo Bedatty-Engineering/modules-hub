@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Shared GitHub Actions for Bedatty Engineering",
   "devDependencies": {
-    "@commitlint/cli": "^20.5.0",
-    "@commitlint/config-conventional": "^20.5.0",
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
