@@ -1,3 +1,10 @@
+## [1.1.1-alpha.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.1.0...v1.1.1-alpha.1) (2026-05-10)
+
+### Bug Fixes
+
+* **config:** extract release workflow steps into composites ([#33](https://github.com/Bedatty-Engineering/modules-hub/issues/33)) ([dce031a](https://github.com/Bedatty-Engineering/modules-hub/commit/dce031a2f66eb648400d7cd6f2a56d1c3402495c))
+* **config:** make GPG_PASSPHRASE secret optional in release workflow ([#34](https://github.com/Bedatty-Engineering/modules-hub/issues/34)) ([de8f7b6](https://github.com/Bedatty-Engineering/modules-hub/commit/de8f7b6e48041420983c0cab6636b05339843c78))
+
 ## [1.1.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.0.2...v1.1.0) (2026-04-24)
 
 ### Features
