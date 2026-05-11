@@ -32,7 +32,7 @@ changelog.
 
 | Name | Required | Description |
 |---|---|---|
-| `target_ref` | yes | Branch name `semantic-release` should release from. Must match a branch declared in `.releaserc.json`. |
+| `target_ref` | yes | Branch name `semantic-release` should release from. Must match a branch declared in the semantic-release config (`.releaserc.json` or `release.config.{js,cjs,mjs}`). |
 | `stable_ref` | no | Stable branch name. When `target_ref` equals this value the full plugin set runs (changelog + release commit). Any other value is treated as a pre-release and the changelog/git plugins are stripped. Defaults to `main`. |
 | `github_token` | yes | Token with permissions to push tags/commits and publish GitHub releases. |
 | `node_version` | no | Passed to `actions/setup-node`. Defaults to `lts/*`. |

@@ -40,7 +40,10 @@ jobs:
       - name: Verify release config
         run: |
           set -euo pipefail
-          test -f .releaserc.json   || { echo "Missing .releaserc.json"; exit 1; }
+          if ! ls .releaserc.json release.config.js release.config.cjs release.config.mjs 2>/dev/null | grep -q .; then
+            echo "Missing semantic-release config (.releaserc.json or release.config.{js,cjs,mjs})"
+            exit 1
+          fi
           test -f package.json      || { echo "Missing package.json"; exit 1; }
           test -f package-lock.json || { echo "Missing package-lock.json"; exit 1; }
           echo "Release config files present."
