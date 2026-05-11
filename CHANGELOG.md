@@ -1,3 +1,9 @@
+## [1.2.0-alpha.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.1.1-alpha.1...v1.2.0-alpha.1) (2026-05-11)
+
+### Features
+
+* **config:** enable stg branch for validate/release pipeline ([#36](https://github.com/Bedatty-Engineering/modules-hub/issues/36)) ([3439614](https://github.com/Bedatty-Engineering/modules-hub/commit/3439614d2e5c84efb2ba86c3966ee86bb351fb60)), closes [#30](https://github.com/Bedatty-Engineering/modules-hub/issues/30) [#33](https://github.com/Bedatty-Engineering/modules-hub/issues/33) [#34](https://github.com/Bedatty-Engineering/modules-hub/issues/34)
+
 ## [1.1.1-alpha.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.1.0...v1.1.1-alpha.1) (2026-05-10)
 
 ### Bug Fixes
