@@ -9,6 +9,14 @@ inputs:
   target_ref:
     description: Branch name semantic-release should release from.
     required: true
+  stable_ref:
+    description: >
+      Stable branch name. When target_ref matches this value the full plugin
+      set runs (including changelog generation and the release commit back to
+      the repo). For any other branch (pre-releases) the changelog/git plugins
+      are stripped so only the tag and GitHub Release are produced.
+    required: false
+    default: main
   github_token:
     description: Token with permissions to push tags, commits, and create releases.
     required: true
@@ -30,6 +38,24 @@ runs:
     - name: Install dependencies
       shell: bash
       run: npm ci
+
+    # ----------------- Pre-release plugin trim -----------------
+    # On pre-release branches we still want a tag and a GitHub Release, but
+    # not a CHANGELOG.md update nor a release commit back to the repo. Strip
+    # `@semantic-release/changelog` and `@semantic-release/git` from the
+    # resolved config before invoking semantic-release.
+    - name: Strip changelog plugins for pre-releases
+      if: inputs.target_ref != inputs.stable_ref
+      shell: bash
+      env:
+        TARGET_REF: ${{ inputs.target_ref }}
+      run: |
+        jq '.plugins |= map(select(
+              (type != "array") or
+              (.[0] != "@semantic-release/changelog" and .[0] != "@semantic-release/git")
+            ))' .releaserc.json > .releaserc.runtime.json
+        mv .releaserc.runtime.json .releaserc.json
+        echo "Pre-release on '${TARGET_REF}': changelog/git plugins disabled."
 
     # ----------------- Release -----------------
     - name: Release
