@@ -39,30 +39,18 @@ runs:
       shell: bash
       run: npm ci
 
-    # ----------------- Pre-release plugin trim -----------------
-    # On pre-release branches we still want a tag and a GitHub Release, but
-    # not a CHANGELOG.md update nor a release commit back to the repo. Strip
-    # `@semantic-release/changelog` and `@semantic-release/git` from the
-    # resolved config before invoking semantic-release.
-    - name: Strip changelog plugins for pre-releases
-      if: inputs.target_ref != inputs.stable_ref
-      shell: bash
-      env:
-        TARGET_REF: ${{ inputs.target_ref }}
-      run: |
-        jq '.plugins |= map(select(
-              (type != "array") or
-              (.[0] != "@semantic-release/changelog" and .[0] != "@semantic-release/git")
-            ))' .releaserc.json > .releaserc.runtime.json
-        mv .releaserc.runtime.json .releaserc.json
-        echo "Pre-release on '${TARGET_REF}': changelog/git plugins disabled."
-
     # ----------------- Release -----------------
+    # On pre-release branches we still want a tag and a GitHub Release, but
+    # not a CHANGELOG.md update nor a release commit back to the repo. The
+    # `SR_PRERELEASE` env var is read by `release.config.js` to omit the
+    # `@semantic-release/changelog` and `@semantic-release/git` plugins.
     - name: Release
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         TARGET_REF: ${{ inputs.target_ref }}
+        STABLE_REF: ${{ inputs.stable_ref }}
+        SR_PRERELEASE: ${{ inputs.target_ref != inputs.stable_ref }}
       # `workflow_run`-triggered runs execute in the default branch's
       # context, so the runner pre-populates GITHUB_REF / GITHUB_REF_NAME
       # with the default branch. Those are among the "default" env vars
