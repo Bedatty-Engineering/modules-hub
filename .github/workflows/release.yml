@@ -48,6 +48,7 @@ jobs:
         uses: Bedatty-Engineering/modules-hub/composite/config/semantic-release@dev
         with:
           target_ref: ${{ inputs.ref }}
+          stable_ref: main
           github_token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Update floating major tag
