@@ -2,7 +2,8 @@ name: Materialize release branches [composite]
 description: >
   Creates local refs for every release branch tracked by semantic-release,
   except the currently checked-out one. Required because semantic-release
-  runs `git tag --merged <branch>` against every branch in .releaserc.json
+  runs `git tag --merged <branch>` against every branch declared in the
+  semantic-release config (`.releaserc.json` or `release.config.{js,cjs,mjs}`)
   and those invocations need a local ref.
 
 inputs:

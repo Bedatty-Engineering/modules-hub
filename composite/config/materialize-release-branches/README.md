@@ -5,8 +5,9 @@
 
 Composite action that creates local refs for the release branches tracked by
 `semantic-release`. `actions/checkout` only materializes the target branch, but
-`semantic-release` iterates over every branch declared in `.releaserc.json`
-running `git tag --merged <name>`, which requires a local ref.
+`semantic-release` iterates over every branch declared in its config
+(`.releaserc.json` or `release.config.{js,cjs,mjs}`) running
+`git tag --merged <name>`, which requires a local ref.
 
 ## Usage
 
