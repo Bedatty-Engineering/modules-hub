@@ -15,7 +15,8 @@ runs:
     - name: make plan
       shell: bash
       env:
+        STACK: ${{ inputs.stack }}
         PLAN_FILE: ${{ inputs.plan_output_file }}
       run: |
         set -o pipefail
-        make plan "STACK=${{ inputs.stack }}" 2>&1 | tee "${GITHUB_WORKSPACE}/${PLAN_FILE}"
+        make plan "STACK=$STACK" 2>&1 | tee "${GITHUB_WORKSPACE}/${PLAN_FILE}"
