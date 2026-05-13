@@ -11,4 +11,6 @@ runs:
   steps:
     - name: make init
       shell: bash
-      run: make init "STACK=${{ inputs.stack }}"
+      env:
+        STACK: ${{ inputs.stack }}
+      run: make init "STACK=$STACK"

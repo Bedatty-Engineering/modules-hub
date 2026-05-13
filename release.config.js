@@ -54,11 +54,11 @@ function resolveGithubHandle(commit) {
   return null;
 }
 
-const contributorsFooterPartial = `
-{{#if contributors.length}}
-### Contributors
+const authorsFooterPartial = `
+{{#if authors.length}}
+### Authors
 
-{{#each contributors}}- {{this}}
+{{#each authors}}- {{this}}
 {{/each}}
 {{/if}}
 `;
@@ -93,12 +93,12 @@ const releaseNotesGenerator = [
           .map((c) => resolveGithubHandle(c))
           .filter(Boolean)
           .map((h) => `@${h}`);
-        context.contributors = [...new Set(handles)].sort((a, b) =>
+        context.authors = [...new Set(handles)].sort((a, b) =>
           a.localeCompare(b),
         );
         return context;
       },
-      footerPartial: contributorsFooterPartial,
+      footerPartial: authorsFooterPartial,
     },
   },
 ];
