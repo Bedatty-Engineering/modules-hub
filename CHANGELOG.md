@@ -1,3 +1,13 @@
+## [1.2.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.2.0...v1.2.1) (2026-05-13)
+
+### Bug Fixes
+
+* **config:** suppress unpinned-tag for first-party composites ([#51](https://github.com/Bedatty-Engineering/modules-hub/issues/51)) ([49c7cab](https://github.com/Bedatty-Engineering/modules-hub/commit/49c7cab79b84bd161be5089ba3dbd7e9e25d94b2)), closes [#44](https://github.com/Bedatty-Engineering/modules-hub/issues/44)
+
+### Authors
+
+- @bedatty
+
 ## [1.2.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.1.0...v1.2.0) (2026-05-12)
 
 ### Features
