@@ -10,4 +10,6 @@ runs:
   steps:
     - name: make validate
       shell: bash
-      run: make validate "STACK=${{ inputs.stack }}"
+      env:
+        STACK: ${{ inputs.stack }}
+      run: make validate "STACK=$STACK"

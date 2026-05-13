@@ -21,8 +21,10 @@ runs:
     - name: Terraform destroy
       shell: bash
       working-directory: ${{ inputs.working_directory }}
+      env:
+        AUTO_APPROVE: ${{ inputs.auto_approve }}
       run: |
-        if [ "${{ inputs.auto_approve }}" = "true" ]; then
+        if [ "$AUTO_APPROVE" = "true" ]; then
           terraform destroy -auto-approve -input=false -no-color
         else
           terraform destroy -input=false -no-color

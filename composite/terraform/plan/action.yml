@@ -27,6 +27,8 @@ runs:
       id: tfplan
       shell: bash
       working-directory: ${{ inputs.working_directory }}
+      env:
+        PLAN_FILE: ${{ inputs.plan_file }}
       run: |
         set -o pipefail
-        terraform plan -no-color -input=false 2>&1 | tee "${GITHUB_WORKSPACE}/${{ inputs.plan_file }}"
+        terraform plan -no-color -input=false 2>&1 | tee "${GITHUB_WORKSPACE}/${PLAN_FILE}"

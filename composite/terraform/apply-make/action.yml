@@ -10,4 +10,6 @@ runs:
   steps:
     - name: make apply-auto
       shell: bash
-      run: make apply-auto "STACK=${{ inputs.stack }}"
+      env:
+        STACK: ${{ inputs.stack }}
+      run: make apply-auto "STACK=$STACK"
