@@ -1,0 +1,28 @@
+# Auto-labeler config for composite/hub/pr-labels.
+# Each key is a label; the list under it is the set of file globs that, if
+# matched by any changed file, cause the label to be applied. Globs use
+# bash pattern semantics — `**` matches across directories.
+
+ci:
+  - ".github/workflows/**"
+
+config:
+  - ".github/labeler.yml"
+  - "commitlint.config.*"
+  - ".releaserc.json"
+  - "release.config.*"
+
+hub:
+  - "composite/hub/**"
+
+terraform:
+  - "composite/terraform/**"
+  - "**/*.tf"
+
+documentation:
+  - "**/*.md"
+  - "docs/**"
+
+dependencies:
+  - "package.json"
+  - "package-lock.json"
