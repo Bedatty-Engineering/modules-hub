@@ -1,0 +1,141 @@
+name: Label PR size [composite]
+description: >
+  Computes the size of a pull request (lines added + removed across
+  changed files, excluding configurable paths) and applies a size label
+  (XS/S/M/L/XL). Optionally fails when the PR exceeds the XL threshold.
+
+inputs:
+  github-token:
+    description: Token with `pull-requests: write` to manage labels.
+    required: false
+    default: ${{ github.token }}
+  xs-threshold:
+    description: Upper bound (inclusive) for the XS bucket.
+    required: false
+    default: "10"
+  s-threshold:
+    description: Upper bound (inclusive) for the S bucket.
+    required: false
+    default: "100"
+  m-threshold:
+    description: Upper bound (inclusive) for the M bucket.
+    required: false
+    default: "500"
+  l-threshold:
+    description: Upper bound (inclusive) for the L bucket. Above this is XL.
+    required: false
+    default: "1000"
+  label-prefix:
+    description: Prefix prepended to the size bucket (e.g. `size/`).
+    required: false
+    default: "size/"
+  exclude-paths:
+    description: >
+      Glob patterns (pipe-separated) of paths to exclude from the size
+      calculation. Defaults exclude lockfiles and generated files.
+    required: false
+    default: "package-lock.json|yarn.lock|pnpm-lock.yaml|go.sum|*.snap"
+  fail-on-xl:
+    description: Fail the step if the PR lands in the XL bucket.
+    required: false
+    default: "false"
+
+outputs:
+  outcome:
+    description: success | failure
+    value: ${{ steps.size.outputs.outcome }}
+  size:
+    description: Computed size bucket (XS/S/M/L/XL).
+    value: ${{ steps.size.outputs.size }}
+  total:
+    description: Total additions + deletions counted.
+    value: ${{ steps.size.outputs.total }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute size and apply label
+      id: size
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+        XS_T: ${{ inputs.xs-threshold }}
+        S_T: ${{ inputs.s-threshold }}
+        M_T: ${{ inputs.m-threshold }}
+        L_T: ${{ inputs.l-threshold }}
+        PREFIX: ${{ inputs.label-prefix }}
+        EXCLUDE: ${{ inputs.exclude-paths }}
+        FAIL_XL: ${{ inputs.fail-on-xl }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${PR_NUMBER:-}" ]; then
+          echo "::error::pr-size requires a pull_request context"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        # Fetch files for the PR with additions/deletions and filename.
+        files_json=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" \
+          --jq '[.[] | {filename, additions, deletions}]')
+
+        # Build a jq filter that drops excluded paths. Translate simple
+        # glob (just trailing `*` or extension `*.ext`) to a regex.
+        exclude_regex=""
+        if [ -n "$EXCLUDE" ]; then
+          IFS='|' read -ra patterns <<< "$EXCLUDE"
+          for p in "${patterns[@]}"; do
+            [ -z "$p" ] && continue
+            esc=$(printf '%s' "$p" | sed -E -e 's/[.+^$(){}\\]/\\&/g' -e 's/\*/.*/g')
+            exclude_regex+="^${esc}$|"
+          done
+          exclude_regex="${exclude_regex%|}"
+        fi
+
+        if [ -n "$exclude_regex" ]; then
+          total=$(printf '%s' "$files_json" | jq --arg re "$exclude_regex" \
+            '[.[] | select(.filename | test($re) | not) | (.additions + .deletions)] | add // 0')
+        else
+          total=$(printf '%s' "$files_json" | jq '[.[] | (.additions + .deletions)] | add // 0')
+        fi
+
+        if   [ "$total" -le "$XS_T" ]; then bucket="XS"
+        elif [ "$total" -le "$S_T"  ]; then bucket="S"
+        elif [ "$total" -le "$M_T"  ]; then bucket="M"
+        elif [ "$total" -le "$L_T"  ]; then bucket="L"
+        else bucket="XL"
+        fi
+
+        label="${PREFIX}${bucket}"
+        echo "Size: $total lines → $label"
+
+        # Remove any pre-existing size/* labels, then apply the new one.
+        existing=$(gh api "repos/$REPO/issues/$PR_NUMBER/labels" --jq '.[].name')
+        while IFS= read -r l; do
+          [ -z "$l" ] && continue
+          case "$l" in
+            "$PREFIX"*)
+              if [ "$l" != "$label" ]; then
+                gh api -X DELETE "repos/$REPO/issues/$PR_NUMBER/labels/$l" >/dev/null || true
+              fi
+              ;;
+          esac
+        done <<< "$existing"
+
+        gh api -X POST "repos/$REPO/issues/$PR_NUMBER/labels" \
+          -f "labels[]=$label" >/dev/null
+
+        {
+          echo "size=$bucket"
+          echo "total=$total"
+        } >> "$GITHUB_OUTPUT"
+
+        if [ "${FAIL_XL,,}" = "true" ] && [ "$bucket" = "XL" ]; then
+          echo "::error::PR is XL ($total lines) and fail-on-xl is enabled"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        echo "outcome=success" >> "$GITHUB_OUTPUT"

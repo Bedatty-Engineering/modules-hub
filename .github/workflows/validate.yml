@@ -1,12 +1,93 @@
 name: Validate [Reusable]
 
+# Base validation reusable workflow. Safe to call from any repository.
+# Two layers run alongside the code-hygiene jobs:
+#   - blocking-checks (PR only): title, description, optional source-branch
+#   - advisory-checks (PR only): size labeling, auto-labeling
+# Followed by pr-summary that posts a sticky comment.
+
 on:
   workflow_call:
     inputs:
       is_pull_request:
-        description: "Whether the trigger was a pull_request event"
+        description: "Whether the trigger was a pull_request event."
         type: boolean
         required: true
+
+      # ----- PR title -----
+      pr_title_types:
+        description: Allowed Conventional Commit types. Newline- or pipe-separated.
+        type: string
+        default: |
+          feat
+          fix
+          docs
+          style
+          refactor
+          perf
+          test
+          chore
+          ci
+          build
+          revert
+      pr_title_scopes:
+        description: Allowed scopes. Empty means any scope is allowed.
+        type: string
+        default: ""
+      require_scope:
+        description: Require a scope in the PR title.
+        type: boolean
+        default: false
+
+      # ----- PR description -----
+      pr_description_min_length:
+        description: Minimum meaningful chars in the PR body.
+        type: string
+        default: "20"
+
+      # ----- Source branch -----
+      enforce_source_branches:
+        description: Enforce allowed source branches when targeting a protected branch.
+        type: boolean
+        default: false
+      allowed_source_branches:
+        description: Allowed sources. Pipe- or newline-separated; supports trailing `*`.
+        type: string
+        default: "dev|hotfix/*"
+      target_branches_for_source_check:
+        description: Protected target branches that require source validation.
+        type: string
+        default: "main"
+
+      # ----- PR size -----
+      enable_pr_size_check:
+        description: Run the size labeling step.
+        type: boolean
+        default: true
+      pr_size_fail_on_xl:
+        description: Fail the advisory job when the PR lands in the XL bucket.
+        type: boolean
+        default: false
+
+      # ----- Auto-labeler -----
+      enable_auto_labeler:
+        description: Run the auto-labeler step. Requires a labeler config file.
+        type: boolean
+        default: false
+      labeler_config_path:
+        description: Path to the labeler config file inside the repo.
+        type: string
+        default: ".github/labeler.yml"
+
+      # ----- Summary -----
+      enable_summary_comment:
+        description: Post / update a sticky summary comment on the PR.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   # ----------------- Commit Lint (PR only) -----------------
@@ -26,9 +107,9 @@ jobs:
           pr-base-sha: ${{ github.event.pull_request.base.sha }}
           pr-head-sha: ${{ github.event.pull_request.head.sha }}
 
-  # ----------------- Workflow & Release Config Lint -----------------
-  validate-actions:
-    name: Validate workflow & action metadata
+  # ----------------- Workflow Lint -----------------
+  actionlint:
+    name: Lint GitHub workflows
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -37,35 +118,12 @@ jobs:
       - name: Lint GitHub workflows
         uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@v1
 
-      - name: Verify release config
-        run: |
-          set -euo pipefail
-          found=""
-          for f in .releaserc.json release.config.js release.config.cjs release.config.mjs; do
-            if [ -f "$f" ]; then
-              found="$f"
-              break
-            fi
-          done
-          if [ -z "$found" ]; then
-            echo "Missing semantic-release config (.releaserc.json or release.config.{js,cjs,mjs})"
-            exit 1
-          fi
-          test -f package.json      || { echo "Missing package.json"; exit 1; }
-          test -f package-lock.json || { echo "Missing package-lock.json"; exit 1; }
-          echo "Release config files present (using $found)."
-
   # ----------------- Changed Files Detection -----------------
-  # Runs on every trigger so downstream lint jobs can scope to the diff.
-  # On push events tj-actions/changed-files falls back to comparing
-  # against HEAD~1, which is good enough for a personal project.
   changed-files:
     name: Detect changed files
     runs-on: ubuntu-latest
     outputs:
       yaml_files: ${{ steps.detect.outputs.yaml_all }}
-      action_files: ${{ steps.detect.outputs.action_all }}
-      composite_dirs: ${{ steps.detect.outputs.composite_dirs }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -80,18 +138,11 @@ jobs:
             yaml_all:
               - '**/*.yml'
               - '**/*.yaml'
-            action_all:
-              - 'composite/**/action.yml'
-            composite_dirs:
-              - 'composite/**/action.yml'
-              - 'composite/**/README.md'
           dir_names: false
 
       - name: Summarize detection
         run: |
           echo "yaml_all=${{ steps.detect.outputs.yaml_all }}"
-          echo "action_all=${{ steps.detect.outputs.action_all }}"
-          echo "composite_dirs=${{ steps.detect.outputs.composite_dirs }}"
 
   # ----------------- YAML Lint -----------------
   yamllint:
@@ -111,78 +162,113 @@ jobs:
           FILES: ${{ needs.changed-files.outputs.yaml_files }}
         run: |
           set -euo pipefail
-          # FILES is a space-separated list from tj-actions/changed-files;
-          # word splitting is intentional here.
+          # FILES is a space-separated list; word splitting is intentional.
           # shellcheck disable=SC2086
           yamllint -d relaxed $FILES
 
-  # ----------------- Pinned Actions Check -----------------
-  # Every `uses:` in a composite action.yml must be either a local repo
-  # composite pinned to a tag (Bedatty-Engineering/modules-hub/...@vN)
-  # or a third-party action pinned to a 40-char SHA. Anything else fails.
-  pinned-actions:
-    name: Pinned actions check
+  # ----------------- Tier 1: Blocking Checks (PR only) -----------------
+  blocking-checks:
+    name: Blocking checks
     runs-on: ubuntu-latest
-    needs: changed-files
-    if: needs.changed-files.outputs.action_files != ''
+    if: inputs.is_pull_request && github.event.pull_request.draft != true
+    outputs:
+      title-result: ${{ steps.collect.outputs.title }}
+      description-result: ${{ steps.collect.outputs.description }}
+      source-branch-result: ${{ steps.collect.outputs.source }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Validate PR title
+        id: title
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-title@v1
+        with:
+          types: ${{ inputs.pr_title_types }}
+          scopes: ${{ inputs.pr_title_scopes }}
+          require-scope: ${{ inputs.require_scope && 'true' || 'false' }}
 
-      - name: Verify SHA / tag pinning
-        env:
-          FILES: ${{ needs.changed-files.outputs.action_files }}
+      - name: Validate PR description
+        id: description
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-description@v1
+        with:
+          min-length: ${{ inputs.pr_description_min_length }}
+
+      - name: Validate source branch
+        id: source
+        if: inputs.enforce_source_branches
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-source-branch@v1
+        with:
+          allowed-branches: ${{ inputs.allowed_source_branches }}
+          target-branches: ${{ inputs.target_branches_for_source_check }}
+
+      - name: Collect and enforce blocking
+        id: collect
         run: |
           set -euo pipefail
-          status=0
-          # FILES is a space-separated list; word splitting is intentional.
-          # shellcheck disable=SC2086
-          set -- $FILES
-          for file in "$@"; do
-            [ -f "$file" ] || continue
-            while IFS= read -r line; do
-              ref=$(printf '%s' "$line" \
-                | sed -E -e 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//' \
-                         -e 's/^["'\'']//' -e 's/["'\'']$//')
-              [ -z "$ref" ] && continue
-              case "$ref" in
-                ./*) continue ;;
-                Bedatty-Engineering/modules-hub/*@v[0-9]*) continue ;;
-              esac
-              if ! printf '%s' "$ref" | grep -Eq '@[0-9a-f]{40}$'; then
-                echo "::error file=$file::Action '$ref' is not pinned to a SHA or a vN tag"
-                status=1
-              fi
-            done < <(grep -E '^[[:space:]]*-?[[:space:]]*uses:' "$file" || true)
+          title="${{ steps.title.outcome }}"
+          description="${{ steps.description.outcome }}"
+          source="${{ steps.source.outcome || 'skipped' }}"
+          {
+            echo "title=$title"
+            echo "description=$description"
+            echo "source=$source"
+          } >> "$GITHUB_OUTPUT"
+          fail=0
+          for r in "$title" "$description" "$source"; do
+            [ "$r" = "failure" ] && fail=1
           done
-          exit $status
+          if [ "$fail" -eq 1 ]; then
+            echo "::error::One or more blocking checks failed (title=$title description=$description source=$source)"
+            exit 1
+          fi
+          echo "All blocking checks passed."
 
-  # ----------------- README Check -----------------
-  # Every composite touched by the PR must keep a README.md alongside its
-  # action.yml. Catches new composites shipped without docs.
-  readme-check:
-    name: Composite README check
+  # ----------------- Tier 2: Advisory Checks (PR only) -----------------
+  advisory-checks:
+    name: Advisory checks
     runs-on: ubuntu-latest
-    needs: changed-files
-    if: needs.changed-files.outputs.composite_dirs != ''
+    needs: blocking-checks
+    if: needs.blocking-checks.result == 'success' && inputs.is_pull_request && github.event.pull_request.draft != true
+    outputs:
+      size-result: ${{ steps.collect.outputs.size }}
+      label-result: ${{ steps.collect.outputs.label }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check PR size
+        id: size
+        if: inputs.enable_pr_size_check
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@v1
+        with:
+          fail-on-xl: ${{ inputs.pr_size_fail_on_xl && 'true' || 'false' }}
 
-      - name: Verify README exists for changed composites
-        env:
-          FILES: ${{ needs.changed-files.outputs.composite_dirs }}
+      - name: Auto-label PR
+        id: labels
+        if: inputs.enable_auto_labeler
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@v1
+        with:
+          config-path: ${{ inputs.labeler_config_path }}
+
+      - name: Collect results
+        id: collect
         run: |
-          set -euo pipefail
-          status=0
-          # FILES is a space-separated list; word splitting is intentional.
-          # shellcheck disable=SC2086
-          set -- $FILES
-          dirs=$(for f in "$@"; do dirname "$f"; done | sort -u)
-          for dir in $dirs; do
-            if [ ! -f "$dir/README.md" ]; then
-              echo "::error file=$dir/action.yml::Composite at '$dir' is missing README.md"
-              status=1
-            fi
-          done
-          exit $status
+          {
+            echo "size=${{ steps.size.outcome || 'skipped' }}"
+            echo "label=${{ steps.labels.outcome || 'skipped' }}"
+          } >> "$GITHUB_OUTPUT"
+
+  # ----------------- Summary Comment (PR only) -----------------
+  pr-summary:
+    name: PR summary
+    runs-on: ubuntu-latest
+    needs: [blocking-checks, advisory-checks]
+    if: always() && inputs.is_pull_request && inputs.enable_summary_comment && github.event.pull_request.draft != true
+    steps:
+      - name: Post summary
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@v1
+        with:
+          title-result: ${{ needs.blocking-checks.outputs.title-result || 'skipped' }}
+          description-result: ${{ needs.blocking-checks.outputs.description-result || 'skipped' }}
+          source-branch-result: ${{ needs.blocking-checks.outputs.source-branch-result || 'skipped' }}
+          size-result: ${{ needs.advisory-checks.outputs.size-result || 'skipped' }}
+          label-result: ${{ needs.advisory-checks.outputs.label-result || 'skipped' }}
