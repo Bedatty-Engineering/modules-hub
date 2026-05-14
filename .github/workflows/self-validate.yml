@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   base:
@@ -15,6 +16,19 @@ jobs:
     uses: ./.github/workflows/validate.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
+      pr_title_scopes: |
+        terraform
+        config
+        hub
+        modules
+        release
+        deps
+        docs
+      enforce_source_branches: true
+      allowed_source_branches: "dev|hotfix/*"
+      target_branches_for_source_check: "main"
+      enable_auto_labeler: true
+      labeler_config_path: ".github/labeler.yml"
 
   modules-hub:
     name: modules-hub checks

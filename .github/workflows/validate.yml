@@ -1,17 +1,93 @@
 name: Validate [Reusable]
 
-# Base validation reusable workflow. Safe to call from any repository:
-# runs commit-message lint, GitHub workflow lint, and YAML lint on the
-# changed files. Repo-specific checks live in companion reusables (e.g.
-# `validate-modules-hub.yml`).
+# Base validation reusable workflow. Safe to call from any repository.
+# Two layers run alongside the code-hygiene jobs:
+#   - blocking-checks (PR only): title, description, optional source-branch
+#   - advisory-checks (PR only): size labeling, auto-labeling
+# Followed by pr-summary that posts a sticky comment.
 
 on:
   workflow_call:
     inputs:
       is_pull_request:
-        description: "Whether the trigger was a pull_request event"
+        description: "Whether the trigger was a pull_request event."
         type: boolean
         required: true
+
+      # ----- PR title -----
+      pr_title_types:
+        description: Allowed Conventional Commit types. Newline- or pipe-separated.
+        type: string
+        default: |
+          feat
+          fix
+          docs
+          style
+          refactor
+          perf
+          test
+          chore
+          ci
+          build
+          revert
+      pr_title_scopes:
+        description: Allowed scopes. Empty means any scope is allowed.
+        type: string
+        default: ""
+      require_scope:
+        description: Require a scope in the PR title.
+        type: boolean
+        default: false
+
+      # ----- PR description -----
+      pr_description_min_length:
+        description: Minimum meaningful chars in the PR body.
+        type: string
+        default: "20"
+
+      # ----- Source branch -----
+      enforce_source_branches:
+        description: Enforce allowed source branches when targeting a protected branch.
+        type: boolean
+        default: false
+      allowed_source_branches:
+        description: Allowed sources. Pipe- or newline-separated; supports trailing `*`.
+        type: string
+        default: "dev|hotfix/*"
+      target_branches_for_source_check:
+        description: Protected target branches that require source validation.
+        type: string
+        default: "main"
+
+      # ----- PR size -----
+      enable_pr_size_check:
+        description: Run the size labeling step.
+        type: boolean
+        default: true
+      pr_size_fail_on_xl:
+        description: Fail the advisory job when the PR lands in the XL bucket.
+        type: boolean
+        default: false
+
+      # ----- Auto-labeler -----
+      enable_auto_labeler:
+        description: Run the auto-labeler step. Requires a labeler config file.
+        type: boolean
+        default: false
+      labeler_config_path:
+        description: Path to the labeler config file inside the repo.
+        type: string
+        default: ".github/labeler.yml"
+
+      # ----- Summary -----
+      enable_summary_comment:
+        description: Post / update a sticky summary comment on the PR.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   # ----------------- Commit Lint (PR only) -----------------
@@ -43,9 +119,6 @@ jobs:
         uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@v1
 
   # ----------------- Changed Files Detection -----------------
-  # Runs on every trigger so downstream lint jobs can scope to the diff.
-  # On push events tj-actions/changed-files falls back to comparing
-  # against HEAD~1, which is good enough for most CI runs.
   changed-files:
     name: Detect changed files
     runs-on: ubuntu-latest
@@ -89,7 +162,113 @@ jobs:
           FILES: ${{ needs.changed-files.outputs.yaml_files }}
         run: |
           set -euo pipefail
-          # FILES is a space-separated list from tj-actions/changed-files;
-          # word splitting is intentional here.
+          # FILES is a space-separated list; word splitting is intentional.
           # shellcheck disable=SC2086
           yamllint -d relaxed $FILES
+
+  # ----------------- Tier 1: Blocking Checks (PR only) -----------------
+  blocking-checks:
+    name: Blocking checks
+    runs-on: ubuntu-latest
+    if: inputs.is_pull_request && github.event.pull_request.draft != true
+    outputs:
+      title-result: ${{ steps.collect.outputs.title }}
+      description-result: ${{ steps.collect.outputs.description }}
+      source-branch-result: ${{ steps.collect.outputs.source }}
+    steps:
+      - name: Validate PR title
+        id: title
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-title@v1
+        with:
+          types: ${{ inputs.pr_title_types }}
+          scopes: ${{ inputs.pr_title_scopes }}
+          require-scope: ${{ inputs.require_scope && 'true' || 'false' }}
+
+      - name: Validate PR description
+        id: description
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-description@v1
+        with:
+          min-length: ${{ inputs.pr_description_min_length }}
+
+      - name: Validate source branch
+        id: source
+        if: inputs.enforce_source_branches
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-source-branch@v1
+        with:
+          allowed-branches: ${{ inputs.allowed_source_branches }}
+          target-branches: ${{ inputs.target_branches_for_source_check }}
+
+      - name: Collect and enforce blocking
+        id: collect
+        run: |
+          set -euo pipefail
+          title="${{ steps.title.outcome }}"
+          description="${{ steps.description.outcome }}"
+          source="${{ steps.source.outcome || 'skipped' }}"
+          {
+            echo "title=$title"
+            echo "description=$description"
+            echo "source=$source"
+          } >> "$GITHUB_OUTPUT"
+          fail=0
+          for r in "$title" "$description" "$source"; do
+            [ "$r" = "failure" ] && fail=1
+          done
+          if [ "$fail" -eq 1 ]; then
+            echo "::error::One or more blocking checks failed (title=$title description=$description source=$source)"
+            exit 1
+          fi
+          echo "All blocking checks passed."
+
+  # ----------------- Tier 2: Advisory Checks (PR only) -----------------
+  advisory-checks:
+    name: Advisory checks
+    runs-on: ubuntu-latest
+    needs: blocking-checks
+    if: needs.blocking-checks.result == 'success' && inputs.is_pull_request && github.event.pull_request.draft != true
+    outputs:
+      size-result: ${{ steps.collect.outputs.size }}
+      label-result: ${{ steps.collect.outputs.label }}
+    steps:
+      - name: Check PR size
+        id: size
+        if: inputs.enable_pr_size_check
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@v1
+        with:
+          fail-on-xl: ${{ inputs.pr_size_fail_on_xl && 'true' || 'false' }}
+
+      - name: Auto-label PR
+        id: labels
+        if: inputs.enable_auto_labeler
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@v1
+        with:
+          config-path: ${{ inputs.labeler_config_path }}
+
+      - name: Collect results
+        id: collect
+        run: |
+          {
+            echo "size=${{ steps.size.outcome || 'skipped' }}"
+            echo "label=${{ steps.labels.outcome || 'skipped' }}"
+          } >> "$GITHUB_OUTPUT"
+
+  # ----------------- Summary Comment (PR only) -----------------
+  pr-summary:
+    name: PR summary
+    runs-on: ubuntu-latest
+    needs: [blocking-checks, advisory-checks]
+    if: always() && inputs.is_pull_request && inputs.enable_summary_comment && github.event.pull_request.draft != true
+    steps:
+      - name: Post summary
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@v1
+        with:
+          title-result: ${{ needs.blocking-checks.outputs.title-result || 'skipped' }}
+          description-result: ${{ needs.blocking-checks.outputs.description-result || 'skipped' }}
+          source-branch-result: ${{ needs.blocking-checks.outputs.source-branch-result || 'skipped' }}
+          size-result: ${{ needs.advisory-checks.outputs.size-result || 'skipped' }}
+          label-result: ${{ needs.advisory-checks.outputs.label-result || 'skipped' }}
