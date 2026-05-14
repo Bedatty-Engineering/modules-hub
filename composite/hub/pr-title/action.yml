@@ -1,0 +1,107 @@
+name: Validate PR title [composite]
+description: >
+  Validates a pull request title against Conventional Commits, with
+  configurable allowed types and optional scope allowlist.
+
+inputs:
+  pr-title:
+    description: PR title to validate.
+    required: false
+    default: ${{ github.event.pull_request.title }}
+  types:
+    description: >
+      Allowed Conventional Commit types. Newline- or pipe-separated.
+    required: false
+    default: |
+      feat
+      fix
+      docs
+      style
+      refactor
+      perf
+      test
+      chore
+      ci
+      build
+      revert
+  scopes:
+    description: >
+      Allowed scopes. Newline- or pipe-separated. Empty means any scope
+      is allowed.
+    required: false
+    default: ""
+  require-scope:
+    description: Require a scope to be present in the title.
+    required: false
+    default: "false"
+
+outputs:
+  outcome:
+    description: success | failure
+    value: ${{ steps.validate.outputs.outcome }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate title
+      id: validate
+      shell: bash
+      env:
+        PR_TITLE: ${{ inputs.pr-title }}
+        ALLOWED_TYPES: ${{ inputs.types }}
+        ALLOWED_SCOPES: ${{ inputs.scopes }}
+        REQUIRE_SCOPE: ${{ inputs.require-scope }}
+      run: |
+        set -euo pipefail
+
+        normalize() { printf '%s' "$1" | tr '|' '\n' | sed '/^[[:space:]]*$/d' | tr -d ' '; }
+
+        title="$PR_TITLE"
+        if [ -z "$title" ]; then
+          echo "::error::PR title is empty"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        # Match: type(scope)!: subject  OR  type!: subject
+        if [[ "$title" =~ ^([a-zA-Z]+)(\(([^)]+)\))?(!)?:[[:space:]]+(.+)$ ]]; then
+          type="${BASH_REMATCH[1]}"
+          scope="${BASH_REMATCH[3]}"
+          subject="${BASH_REMATCH[5]}"
+        else
+          echo "::error::Title does not match Conventional Commits: '<type>(<scope>): <subject>'"
+          echo "  got: $title"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        allowed_types=$(normalize "$ALLOWED_TYPES")
+        if ! printf '%s\n' "$allowed_types" | grep -Fxq "$type"; then
+          echo "::error::Type '$type' is not allowed. Allowed: $(echo "$allowed_types" | paste -sd ',' -)"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        if [ "${REQUIRE_SCOPE,,}" = "true" ] && [ -z "$scope" ]; then
+          echo "::error::Scope is required but missing from title"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        if [ -n "$ALLOWED_SCOPES" ] && [ -n "$scope" ]; then
+          allowed_scopes=$(normalize "$ALLOWED_SCOPES")
+          if ! printf '%s\n' "$allowed_scopes" | grep -Fxq "$scope"; then
+            echo "::error::Scope '$scope' is not allowed. Allowed: $(echo "$allowed_scopes" | paste -sd ',' -)"
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+        fi
+
+        if [ -z "$subject" ]; then
+          echo "::error::Subject is empty"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        echo "PR title OK: type=$type scope=${scope:-<none>}"
+        echo "outcome=success" >> "$GITHUB_OUTPUT"
