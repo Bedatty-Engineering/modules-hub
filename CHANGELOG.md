@@ -1,3 +1,31 @@
+## [1.2.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.2.0...v1.2.1) (2026-05-13)
+
+### Bug Fixes
+
+* **config:** suppress unpinned-tag for first-party composites ([#51](https://github.com/Bedatty-Engineering/modules-hub/issues/51)) ([49c7cab](https://github.com/Bedatty-Engineering/modules-hub/commit/49c7cab79b84bd161be5089ba3dbd7e9e25d94b2)), closes [#44](https://github.com/Bedatty-Engineering/modules-hub/issues/44)
+
+### Authors
+
+- @bedatty
+
+## [1.2.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.1.0...v1.2.0) (2026-05-12)
+
+### Features
+
+* **config:** enable stg branch for validate/release pipeline ([#36](https://github.com/Bedatty-Engineering/modules-hub/issues/36)) ([3439614](https://github.com/Bedatty-Engineering/modules-hub/commit/3439614d2e5c84efb2ba86c3966ee86bb351fb60)), closes [#30](https://github.com/Bedatty-Engineering/modules-hub/issues/30) [#33](https://github.com/Bedatty-Engineering/modules-hub/issues/33) [#34](https://github.com/Bedatty-Engineering/modules-hub/issues/34)
+
+### Bug Fixes
+
+* **config:** extract release workflow steps into composites ([#33](https://github.com/Bedatty-Engineering/modules-hub/issues/33)) ([dce031a](https://github.com/Bedatty-Engineering/modules-hub/commit/dce031a2f66eb648400d7cd6f2a56d1c3402495c))
+* **config:** make GPG_PASSPHRASE secret optional in release workflow ([#34](https://github.com/Bedatty-Engineering/modules-hub/issues/34)) ([de8f7b6](https://github.com/Bedatty-Engineering/modules-hub/commit/de8f7b6e48041420983c0cab6636b05339843c78))
+* **config:** skip changelog/git plugins on pre-release branches ([c21e114](https://github.com/Bedatty-Engineering/modules-hub/commit/c21e114f877a0aff79fa838d2855b12e81cc8f92))
+* **release:** add Contributors section and env-gated plugins ([d3c684a](https://github.com/Bedatty-Engineering/modules-hub/commit/d3c684a2fd27b4c9c54ecd21f3391b2691e3ab85)), closes [#44](https://github.com/Bedatty-Engineering/modules-hub/issues/44)
+* **release:** add Contributors section and env-gated plugins ([2f51269](https://github.com/Bedatty-Engineering/modules-hub/commit/2f5126951e28fa5fed9a55b28a57a4d2bfd93cf6)), closes [#44](https://github.com/Bedatty-Engineering/modules-hub/issues/44)
+
+### Contributors
+
+- @bedatty
+
 ## [1.1.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.0.2...v1.1.0) (2026-04-24)
 
 ### Features
