@@ -1,3 +1,18 @@
+## [1.3.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.2.1...v1.3.0) (2026-05-14)
+
+### Features
+
+* **config:** integrate pr-* composites into validate workflow ([#55](https://github.com/Bedatty-Engineering/modules-hub/issues/55)) ([5befe46](https://github.com/Bedatty-Engineering/modules-hub/commit/5befe4668e6db7b6b4e890e971cdc550858ab481)), closes [#54](https://github.com/Bedatty-Engineering/modules-hub/issues/54)
+* **hub:** add pr-* composites for PR-hygiene validation ([#54](https://github.com/Bedatty-Engineering/modules-hub/issues/54)) ([8d66d16](https://github.com/Bedatty-Engineering/modules-hub/commit/8d66d16a1016299665f0f047e5c92765d315fed8))
+
+### Bug Fixes
+
+* **config:** split validate into generic and modules-hub reusables ([6b77afe](https://github.com/Bedatty-Engineering/modules-hub/commit/6b77afe63e249286e4fd5bd7373197253496cedb))
+
+### Authors
+
+- @bedatty
+
 ## [1.2.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.2.0...v1.2.1) (2026-05-13)
 
 ### Bug Fixes
