@@ -1,6 +1,6 @@
 name: Validate [Reusable]
 
-# Generic validation reusable workflow. Safe to call from any repository:
+# Base validation reusable workflow. Safe to call from any repository:
 # runs commit-message lint, GitHub workflow lint, and YAML lint on the
 # changed files. Repo-specific checks live in companion reusables (e.g.
 # `validate-modules-hub.yml`).

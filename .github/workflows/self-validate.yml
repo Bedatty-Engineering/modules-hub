@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  generic:
-    name: Generic checks
+  base:
+    name: Base validation
     uses: ./.github/workflows/validate.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
