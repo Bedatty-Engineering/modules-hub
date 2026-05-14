@@ -1,0 +1,89 @@
+name: Validate PR source branch [composite]
+description: >
+  Enforces that pull requests against protected target branches come from
+  an allowed source branch. Skips automatically when the target branch is
+  not in the protected list.
+
+inputs:
+  source:
+    description: PR source branch.
+    required: false
+    default: ${{ github.head_ref }}
+  target:
+    description: PR target branch.
+    required: false
+    default: ${{ github.base_ref }}
+  allowed-branches:
+    description: >
+      Allowed source branches. Pipe- or newline-separated. Supports the
+      `*` wildcard as a suffix (e.g. `hotfix/*`).
+    required: false
+    default: "dev|hotfix/*"
+  target-branches:
+    description: >
+      Target branches that require source validation. Pipe- or
+      newline-separated. PRs to any other target skip this check.
+    required: false
+    default: "main"
+
+outputs:
+  outcome:
+    description: success | failure | skipped
+    value: ${{ steps.validate.outputs.outcome }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate source branch
+      id: validate
+      shell: bash
+      env:
+        SRC: ${{ inputs.source }}
+        TGT: ${{ inputs.target }}
+        ALLOWED: ${{ inputs.allowed-branches }}
+        TARGETS: ${{ inputs.target-branches }}
+      run: |
+        set -euo pipefail
+
+        normalize() { printf '%s' "$1" | tr '|' '\n' | sed '/^[[:space:]]*$/d' | tr -d ' '; }
+
+        targets=$(normalize "$TARGETS")
+        if ! printf '%s\n' "$targets" | grep -Fxq "$TGT"; then
+          echo "Target '$TGT' is not protected; skipping."
+          echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if [ -z "$SRC" ]; then
+          echo "::error::Source branch is empty"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        allowed=$(normalize "$ALLOWED")
+        while IFS= read -r pattern; do
+          [ -z "$pattern" ] && continue
+          case "$pattern" in
+            *\*)
+              prefix="${pattern%\*}"
+              case "$SRC" in
+                "$prefix"*)
+                  echo "Source '$SRC' matches allowed pattern '$pattern'."
+                  echo "outcome=success" >> "$GITHUB_OUTPUT"
+                  exit 0
+                  ;;
+              esac
+              ;;
+            *)
+              if [ "$SRC" = "$pattern" ]; then
+                echo "Source '$SRC' matches allowed branch '$pattern'."
+                echo "outcome=success" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              ;;
+          esac
+        done <<< "$allowed"
+
+        echo "::error::Source '$SRC' is not allowed for target '$TGT'. Allowed: $(echo "$allowed" | paste -sd ',' -)"
+        echo "outcome=failure" >> "$GITHUB_OUTPUT"
+        exit 1

@@ -1,0 +1,122 @@
+name: Auto-label PR [composite]
+description: >
+  Applies labels to a pull request based on a YAML config of
+  `label: [glob, glob, ...]`. A label is applied when any changed file
+  matches any of its globs.
+
+inputs:
+  github-token:
+    description: Token with `pull-requests: write`.
+    required: false
+    default: ${{ github.token }}
+  config-path:
+    description: Path to the labeler config file inside the repo.
+    required: false
+    default: ".github/labeler.yml"
+  sync:
+    description: >
+      When `true`, removes labels declared in the config that no longer
+      match any changed file. Labels outside the config are never touched.
+    required: false
+    default: "false"
+
+outputs:
+  outcome:
+    description: success | failure | skipped
+    value: ${{ steps.label.outputs.outcome }}
+  applied:
+    description: Space-separated list of labels applied (or kept).
+    value: ${{ steps.label.outputs.applied }}
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout config
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        sparse-checkout: |
+          ${{ inputs.config-path }}
+        sparse-checkout-cone-mode: false
+
+    - name: Apply labels
+      id: label
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+        CONFIG_PATH: ${{ inputs.config-path }}
+        SYNC: ${{ inputs.sync }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${PR_NUMBER:-}" ]; then
+          echo "::error::pr-labels requires a pull_request context"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        if [ ! -f "$CONFIG_PATH" ]; then
+          echo "Labeler config '$CONFIG_PATH' not found; skipping."
+          echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        changed=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" \
+          --jq '.[].filename')
+
+        config_json=$(yq -o=json '.' "$CONFIG_PATH")
+
+        # Compute labels to apply (any glob matches any changed file).
+        mapfile -t labels < <(printf '%s' "$config_json" | jq -r 'keys[]')
+
+        to_apply=()
+        for label in "${labels[@]}"; do
+          mapfile -t globs < <(printf '%s' "$config_json" | jq -r --arg k "$label" '.[$k][]')
+          matched="false"
+          for glob in "${globs[@]}"; do
+            [ -z "$glob" ] && continue
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              # shellcheck disable=SC2053
+              # `glob` is intentionally unquoted to enable pattern matching.
+              if [[ "$file" == $glob ]]; then
+                matched="true"
+                break 2
+              fi
+            done <<< "$changed"
+          done
+          if [ "$matched" = "true" ]; then
+            to_apply+=("$label")
+          fi
+        done
+
+        if [ "${SYNC,,}" = "true" ]; then
+          existing=$(gh api "repos/$REPO/issues/$PR_NUMBER/labels" --jq '.[].name')
+          for label in "${labels[@]}"; do
+            keep="false"
+            for a in "${to_apply[@]+"${to_apply[@]}"}"; do
+              [ "$a" = "$label" ] && keep="true" && break
+            done
+            if [ "$keep" = "false" ] && printf '%s\n' "$existing" | grep -Fxq "$label"; then
+              gh api -X DELETE "repos/$REPO/issues/$PR_NUMBER/labels/$label" >/dev/null || true
+            fi
+          done
+        fi
+
+        if [ "${#to_apply[@]}" -eq 0 ]; then
+          echo "No label matched changed files."
+          echo "applied=" >> "$GITHUB_OUTPUT"
+          echo "outcome=success" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        args=()
+        for l in "${to_apply[@]}"; do args+=(-f "labels[]=$l"); done
+        gh api -X POST "repos/$REPO/issues/$PR_NUMBER/labels" "${args[@]}" >/dev/null
+
+        echo "Applied: ${to_apply[*]}"
+        {
+          echo "applied=${to_apply[*]}"
+          echo "outcome=success"
+        } >> "$GITHUB_OUTPUT"

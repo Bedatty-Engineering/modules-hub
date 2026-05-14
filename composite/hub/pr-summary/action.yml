@@ -1,0 +1,131 @@
+name: PR validation summary [composite]
+description: >
+  Aggregates the outcomes of upstream validation steps and posts (or
+  updates) a sticky comment on the pull request with a status table.
+
+inputs:
+  github-token:
+    description: Token with `pull-requests: write`.
+    required: false
+    default: ${{ github.token }}
+  title-result:
+    description: Outcome of the PR title check.
+    required: false
+    default: "skipped"
+  description-result:
+    description: Outcome of the PR description check.
+    required: false
+    default: "skipped"
+  source-branch-result:
+    description: Outcome of the source-branch check.
+    required: false
+    default: "skipped"
+  size-result:
+    description: Outcome of the size check.
+    required: false
+    default: "skipped"
+  label-result:
+    description: Outcome of the auto-label check.
+    required: false
+    default: "skipped"
+  post-comment:
+    description: Whether to post / update the sticky comment.
+    required: false
+    default: "true"
+  marker:
+    description: HTML marker used to locate the existing sticky comment.
+    required: false
+    default: "<!-- pr-validation-summary -->"
+
+outputs:
+  overall:
+    description: success | failure (failure if any blocking check failed)
+    value: ${{ steps.summary.outputs.overall }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build summary
+      id: summary
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+        TITLE: ${{ inputs.title-result }}
+        DESCRIPTION: ${{ inputs.description-result }}
+        SOURCE: ${{ inputs.source-branch-result }}
+        SIZE: ${{ inputs.size-result }}
+        LABEL: ${{ inputs.label-result }}
+        POST: ${{ inputs.post-comment }}
+        MARKER: ${{ inputs.marker }}
+      run: |
+        set -euo pipefail
+
+        icon() {
+          case "$1" in
+            success) printf '✅' ;;
+            failure) printf '❌' ;;
+            skipped) printf '⚪' ;;
+            *)       printf '❔' ;;
+          esac
+        }
+
+        overall="success"
+        for r in "$TITLE" "$DESCRIPTION" "$SOURCE"; do
+          [ "$r" = "failure" ] && overall="failure"
+        done
+
+        body=$(cat <<EOF
+$MARKER
+## PR Validation Summary
+
+| Check | Result |
+|---|---|
+| PR title | $(icon "$TITLE") \`$TITLE\` |
+| PR description | $(icon "$DESCRIPTION") \`$DESCRIPTION\` |
+| Source branch | $(icon "$SOURCE") \`$SOURCE\` |
+| Size | $(icon "$SIZE") \`$SIZE\` |
+| Auto-label | $(icon "$LABEL") \`$LABEL\` |
+
+**Overall:** $(icon "$overall") \`$overall\`
+EOF
+)
+
+        {
+          echo "## PR Validation Summary"
+          echo
+          echo "| Check | Result |"
+          echo "|---|---|"
+          echo "| PR title | $(icon "$TITLE") \`$TITLE\` |"
+          echo "| PR description | $(icon "$DESCRIPTION") \`$DESCRIPTION\` |"
+          echo "| Source branch | $(icon "$SOURCE") \`$SOURCE\` |"
+          echo "| Size | $(icon "$SIZE") \`$SIZE\` |"
+          echo "| Auto-label | $(icon "$LABEL") \`$LABEL\` |"
+          echo
+          echo "**Overall:** $(icon "$overall") \`$overall\`"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        echo "overall=$overall" >> "$GITHUB_OUTPUT"
+
+        if [ "${POST,,}" != "true" ] || [ -z "${PR_NUMBER:-}" ]; then
+          exit 0
+        fi
+
+        # Find existing sticky comment by marker, then PATCH or POST.
+        existing_id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
+          --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
+          | head -n1 || true)
+
+        tmp=$(mktemp)
+        printf '%s' "$body" > "$tmp"
+        if [ -n "$existing_id" ]; then
+          gh api -X PATCH "repos/$REPO/issues/comments/$existing_id" \
+            -F body=@"$tmp" >/dev/null
+          echo "Updated existing summary comment ($existing_id)."
+        else
+          gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" \
+            -F body=@"$tmp" >/dev/null
+          echo "Posted new summary comment."
+        fi
+        rm -f "$tmp"
