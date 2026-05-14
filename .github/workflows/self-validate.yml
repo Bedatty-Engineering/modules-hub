@@ -10,7 +10,12 @@ permissions:
   contents: read
 
 jobs:
-  ci:
+  base:
+    name: Base validation
     uses: ./.github/workflows/validate.yml
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
+
+  modules-hub:
+    name: modules-hub checks
+    uses: ./.github/workflows/validate-modules-hub.yml

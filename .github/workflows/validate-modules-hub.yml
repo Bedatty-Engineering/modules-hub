@@ -1,0 +1,137 @@
+name: Validate modules-hub [Reusable]
+
+# Repository-specific validation reusable workflow for the modules-hub
+# project. Covers checks that don't generalize to other repos: presence of
+# the semantic-release config, pinning rules for first-party composites,
+# and README parity for each composite directory.
+
+on:
+  workflow_call: {}
+
+jobs:
+  # ----------------- Release Config -----------------
+  release-config:
+    name: Verify release config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Verify release config
+        run: |
+          set -euo pipefail
+          found=""
+          for f in .releaserc.json release.config.js release.config.cjs release.config.mjs; do
+            if [ -f "$f" ]; then
+              found="$f"
+              break
+            fi
+          done
+          if [ -z "$found" ]; then
+            echo "Missing semantic-release config (.releaserc.json or release.config.{js,cjs,mjs})"
+            exit 1
+          fi
+          test -f package.json      || { echo "Missing package.json"; exit 1; }
+          test -f package-lock.json || { echo "Missing package-lock.json"; exit 1; }
+          echo "Release config files present (using $found)."
+
+  # ----------------- Changed Files Detection (composite scope) -----------------
+  changed-files:
+    name: Detect changed composite files
+    runs-on: ubuntu-latest
+    outputs:
+      action_files: ${{ steps.detect.outputs.action_all }}
+      composite_dirs: ${{ steps.detect.outputs.composite_dirs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: detect
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files_yaml: |
+            action_all:
+              - 'composite/**/action.yml'
+            composite_dirs:
+              - 'composite/**/action.yml'
+              - 'composite/**/README.md'
+          dir_names: false
+
+      - name: Summarize detection
+        run: |
+          echo "action_all=${{ steps.detect.outputs.action_all }}"
+          echo "composite_dirs=${{ steps.detect.outputs.composite_dirs }}"
+
+  # ----------------- Pinned Actions Check -----------------
+  # Every `uses:` in a composite action.yml must be either a local repo
+  # composite pinned to a tag (Bedatty-Engineering/modules-hub/...@vN)
+  # or a third-party action pinned to a 40-char SHA. Anything else fails.
+  pinned-actions:
+    name: Pinned actions check
+    runs-on: ubuntu-latest
+    needs: changed-files
+    if: needs.changed-files.outputs.action_files != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Verify SHA / tag pinning
+        env:
+          FILES: ${{ needs.changed-files.outputs.action_files }}
+        run: |
+          set -euo pipefail
+          status=0
+          # FILES is a space-separated list; word splitting is intentional.
+          # shellcheck disable=SC2086
+          set -- $FILES
+          for file in "$@"; do
+            [ -f "$file" ] || continue
+            while IFS= read -r line; do
+              ref=$(printf '%s' "$line" \
+                | sed -E -e 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//' \
+                         -e 's/^["'\'']//' -e 's/["'\'']$//')
+              [ -z "$ref" ] && continue
+              case "$ref" in
+                ./*) continue ;;
+                Bedatty-Engineering/modules-hub/*@v[0-9]*) continue ;;
+              esac
+              if ! printf '%s' "$ref" | grep -Eq '@[0-9a-f]{40}$'; then
+                echo "::error file=$file::Action '$ref' is not pinned to a SHA or a vN tag"
+                status=1
+              fi
+            done < <(grep -E '^[[:space:]]*-?[[:space:]]*uses:' "$file" || true)
+          done
+          exit $status
+
+  # ----------------- README Check -----------------
+  # Every composite touched by the PR must keep a README.md alongside its
+  # action.yml. Catches new composites shipped without docs.
+  readme-check:
+    name: Composite README check
+    runs-on: ubuntu-latest
+    needs: changed-files
+    if: needs.changed-files.outputs.composite_dirs != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Verify README exists for changed composites
+        env:
+          FILES: ${{ needs.changed-files.outputs.composite_dirs }}
+        run: |
+          set -euo pipefail
+          status=0
+          # FILES is a space-separated list; word splitting is intentional.
+          # shellcheck disable=SC2086
+          set -- $FILES
+          dirs=$(for f in "$@"; do dirname "$f"; done | sort -u)
+          for dir in $dirs; do
+            if [ ! -f "$dir/README.md" ]; then
+              echo "::error file=$dir/action.yml::Composite at '$dir' is missing README.md"
+              status=1
+            fi
+          done
+          exit $status
