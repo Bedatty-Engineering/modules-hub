@@ -64,7 +64,10 @@ runs:
         fi
 
         # Match: type(scope)!: subject  OR  type!: subject
-        if [[ "$title" =~ ^([a-zA-Z]+)(\(([^)]+)\))?(!)?:[[:space:]]+(.+)$ ]]; then
+        # Regex stored in a variable so bash's `[[ =~ ]]` parser does not
+        # choke on the inline `\(` / `\)` escape sequences (bash 5.x).
+        re='^([a-zA-Z]+)(\(([^)]+)\))?(!)?:[[:space:]]+(.+)$'
+        if [[ "$title" =~ $re ]]; then
           type="${BASH_REMATCH[1]}"
           scope="${BASH_REMATCH[3]}"
           subject="${BASH_REMATCH[5]}"
