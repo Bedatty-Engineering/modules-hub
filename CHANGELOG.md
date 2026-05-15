@@ -1,3 +1,13 @@
+## [1.3.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.3.0...v1.3.1) (2026-05-15)
+
+### Bug Fixes
+
+* **hub:** pr-title regex parse error in bash 5.x ([1e5d154](https://github.com/Bedatty-Engineering/modules-hub/commit/1e5d1544cc3274d8069bab1ad485d5868238afa3)), closes [#57](https://github.com/Bedatty-Engineering/modules-hub/issues/57)
+
+### Authors
+
+- @bedatty
+
 ## [1.3.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.2.1...v1.3.0) (2026-05-14)
 
 ### Features
