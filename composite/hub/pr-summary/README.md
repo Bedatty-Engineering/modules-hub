@@ -41,7 +41,7 @@ Requires `pull-requests: write` permission to post / edit the comment.
 
 | Name | Description |
 |---|---|
-| `overall` | `success` if every blocking check (title/description/source) is `success` or `skipped`; `failure` if any is `failure`. |
+| `overall` | `success` if every check (title/description/source/size/label/assignee) is `success` or `skipped`; `failure` if any is `failure`. |
 
 ## Sticky comment behavior
 
