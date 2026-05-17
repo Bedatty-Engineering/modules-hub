@@ -12,26 +12,50 @@ inputs:
     description: Outcome of the PR title check.
     required: false
     default: "skipped"
+  title-message:
+    description: Error message from the PR title check (when failed).
+    required: false
+    default: ""
   description-result:
     description: Outcome of the PR description check.
     required: false
     default: "skipped"
+  description-message:
+    description: Error message from the PR description check (when failed).
+    required: false
+    default: ""
   source-branch-result:
     description: Outcome of the source-branch check.
     required: false
     default: "skipped"
+  source-branch-message:
+    description: Error message from the source-branch check (when failed).
+    required: false
+    default: ""
   size-result:
     description: Outcome of the size check.
     required: false
     default: "skipped"
+  size-message:
+    description: Error message from the size check (when failed).
+    required: false
+    default: ""
   label-result:
     description: Outcome of the auto-label check.
     required: false
     default: "skipped"
+  label-message:
+    description: Error message from the auto-label check (when failed).
+    required: false
+    default: ""
   assignee-result:
     description: Outcome of the auto-assign check.
     required: false
     default: "skipped"
+  assignee-message:
+    description: Error message from the auto-assign check (when failed).
+    required: false
+    default: ""
   post-comment:
     description: Whether to post / update the sticky comment.
     required: false
@@ -57,11 +81,17 @@ runs:
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REPO: ${{ github.repository }}
         TITLE: ${{ inputs.title-result }}
+        TITLE_MSG: ${{ inputs.title-message }}
         DESCRIPTION: ${{ inputs.description-result }}
+        DESCRIPTION_MSG: ${{ inputs.description-message }}
         SOURCE: ${{ inputs.source-branch-result }}
+        SOURCE_MSG: ${{ inputs.source-branch-message }}
         SIZE: ${{ inputs.size-result }}
+        SIZE_MSG: ${{ inputs.size-message }}
         LABEL: ${{ inputs.label-result }}
+        LABEL_MSG: ${{ inputs.label-message }}
         ASSIGNEE: ${{ inputs.assignee-result }}
+        ASSIGNEE_MSG: ${{ inputs.assignee-message }}
         POST: ${{ inputs.post-comment }}
         MARKER: ${{ inputs.marker }}
       run: |
@@ -81,6 +111,38 @@ runs:
           [ "$r" = "failure" ] && overall="failure"
         done
 
+        # Build the overall block: a single-line success or a <details>
+        # dropdown when any check failed.
+        overall_block=$(mktemp)
+        if [ "$overall" = "success" ]; then
+          echo "**Overall:** $(icon "$overall") \`$overall\`" > "$overall_block"
+        else
+          {
+            echo "<details>"
+            echo "<summary><strong>Overall:</strong> $(icon "$overall") <code>$overall</code> — expand for error details</summary>"
+            echo
+            # Emit one bullet per failing check with the captured message.
+            print_err() {
+              local label="$1" outcome="$2" msg="$3"
+              if [ "$outcome" = "failure" ]; then
+                if [ -n "$msg" ]; then
+                  echo "- **$label**: $msg"
+                else
+                  echo "- **$label**: (no error message captured)"
+                fi
+              fi
+            }
+            print_err "PR title"        "$TITLE"       "$TITLE_MSG"
+            print_err "PR description"  "$DESCRIPTION" "$DESCRIPTION_MSG"
+            print_err "Source branch"   "$SOURCE"      "$SOURCE_MSG"
+            print_err "Size"            "$SIZE"        "$SIZE_MSG"
+            print_err "Auto-label"      "$LABEL"       "$LABEL_MSG"
+            print_err "Assignee"        "$ASSIGNEE"    "$ASSIGNEE_MSG"
+            echo
+            echo "</details>"
+          } > "$overall_block"
+        fi
+
         body_file=$(mktemp)
         {
           echo "## PR Validation Summary"
@@ -94,8 +156,9 @@ runs:
           echo "| Auto-label | $(icon "$LABEL") \`$LABEL\` |"
           echo "| Assignee | $(icon "$ASSIGNEE") \`$ASSIGNEE\` |"
           echo
-          echo "**Overall:** $(icon "$overall") \`$overall\`"
+          cat "$overall_block"
         } > "$body_file"
+        rm -f "$overall_block"
 
         # Step summary is the table without the marker.
         cat "$body_file" >> "$GITHUB_STEP_SUMMARY"

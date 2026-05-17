@@ -196,8 +196,11 @@ jobs:
     if: inputs.is_pull_request && github.event.pull_request.draft != true
     outputs:
       title-result: ${{ steps.collect.outputs.title }}
+      title-message: ${{ steps.title.outputs.message }}
       description-result: ${{ steps.collect.outputs.description }}
+      description-message: ${{ steps.description.outputs.message }}
       source-branch-result: ${{ steps.collect.outputs.source }}
+      source-branch-message: ${{ steps.source.outputs.message }}
     steps:
       - name: Validate PR title
         id: title
@@ -254,8 +257,11 @@ jobs:
     if: needs.blocking-checks.result == 'success' && inputs.is_pull_request && github.event.pull_request.draft != true
     outputs:
       size-result: ${{ steps.collect.outputs.size }}
+      size-message: ${{ steps.size.outputs.message }}
       label-result: ${{ steps.collect.outputs.label }}
+      label-message: ${{ steps.labels.outputs.message }}
       assignee-result: ${{ steps.collect.outputs.assignee }}
+      assignee-message: ${{ steps.assignee.outputs.message }}
     steps:
       - name: Check PR size
         id: size
@@ -305,8 +311,14 @@ jobs:
         with:
           github-token: ${{ secrets.repository_operator || github.token }}
           title-result: ${{ needs.blocking-checks.outputs.title-result || 'skipped' }}
+          title-message: ${{ needs.blocking-checks.outputs.title-message }}
           description-result: ${{ needs.blocking-checks.outputs.description-result || 'skipped' }}
+          description-message: ${{ needs.blocking-checks.outputs.description-message }}
           source-branch-result: ${{ needs.blocking-checks.outputs.source-branch-result || 'skipped' }}
+          source-branch-message: ${{ needs.blocking-checks.outputs.source-branch-message }}
           size-result: ${{ needs.advisory-checks.outputs.size-result || 'skipped' }}
+          size-message: ${{ needs.advisory-checks.outputs.size-message }}
           label-result: ${{ needs.advisory-checks.outputs.label-result || 'skipped' }}
+          label-message: ${{ needs.advisory-checks.outputs.label-message }}
           assignee-result: ${{ needs.advisory-checks.outputs.assignee-result || 'skipped' }}
+          assignee-message: ${{ needs.advisory-checks.outputs.assignee-message }}
