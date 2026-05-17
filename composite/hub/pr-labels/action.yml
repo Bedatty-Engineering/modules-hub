@@ -6,7 +6,7 @@ description: >
 
 inputs:
   github-token:
-    description: Token with `pull-requests: write`.
+    description: "Token with `pull-requests: write`."
     required: false
     default: ${{ github.token }}
   config-path:
