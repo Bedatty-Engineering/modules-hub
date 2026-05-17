@@ -1,0 +1,78 @@
+name: Auto-assign PR [composite]
+description: >
+  Assigns a pull request to one or more GitHub users. Defaults to the
+  PR author, so the person who opened the PR is also its assignee.
+
+inputs:
+  github-token:
+    description: "Token with `issues: write`."
+    required: false
+    default: ${{ github.token }}
+  assignee:
+    description: >
+      Login(s) to assign. Comma-separated. Defaults to the PR author.
+    required: false
+    default: ${{ github.event.pull_request.user.login }}
+
+outputs:
+  outcome:
+    description: success | failure | skipped
+    value: ${{ steps.assign.outputs.outcome }}
+  assigned:
+    description: Comma-separated list of logins that were assigned.
+    value: ${{ steps.assign.outputs.assigned }}
+
+runs:
+  using: composite
+  steps:
+    - name: Assign PR
+      id: assign
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+        ASSIGNEE: ${{ inputs.assignee }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${PR_NUMBER:-}" ]; then
+          echo "::error::pr-assignee requires a pull_request context"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        if [ -z "${ASSIGNEE:-}" ]; then
+          echo "No assignee resolved (PR author unavailable); skipping."
+          echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Split comma-separated logins, trim whitespace, drop empties.
+        args=()
+        applied=()
+        IFS=',' read -ra raw <<< "$ASSIGNEE"
+        for login in "${raw[@]}"; do
+          trimmed="${login// /}"
+          [ -z "$trimmed" ] && continue
+          args+=(-f "assignees[]=$trimmed")
+          applied+=("$trimmed")
+        done
+
+        if [ "${#args[@]}" -eq 0 ]; then
+          echo "No valid logins after parsing '$ASSIGNEE'; skipping."
+          echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # POST is idempotent: existing assignees stay assigned, new ones
+        # are added. Logins the repo can't assign (non-collaborators) are
+        # silently dropped by the API.
+        gh api -X POST "repos/$REPO/issues/$PR_NUMBER/assignees" "${args[@]}" >/dev/null
+
+        joined=$(IFS=,; echo "${applied[*]}")
+        echo "Requested assignees: $joined"
+        {
+          echo "assigned=$joined"
+          echo "outcome=success"
+        } >> "$GITHUB_OUTPUT"

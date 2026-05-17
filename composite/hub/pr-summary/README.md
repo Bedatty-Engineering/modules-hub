@@ -33,6 +33,7 @@ Requires `pull-requests: write` permission to post / edit the comment.
 | `source-branch-result` | `skipped` | Outcome of the source-branch check. |
 | `size-result` | `skipped` | Outcome of the size check. |
 | `label-result` | `skipped` | Outcome of the auto-label step. |
+| `assignee-result` | `skipped` | Outcome of the auto-assign step. |
 | `post-comment` | `true` | Set to `false` to skip the sticky comment (still writes step summary). |
 | `marker` | `<!-- pr-validation-summary -->` | HTML marker used to locate the existing sticky comment. |
 

@@ -28,6 +28,10 @@ inputs:
     description: Outcome of the auto-label check.
     required: false
     default: "skipped"
+  assignee-result:
+    description: Outcome of the auto-assign check.
+    required: false
+    default: "skipped"
   post-comment:
     description: Whether to post / update the sticky comment.
     required: false
@@ -57,6 +61,7 @@ runs:
         SOURCE: ${{ inputs.source-branch-result }}
         SIZE: ${{ inputs.size-result }}
         LABEL: ${{ inputs.label-result }}
+        ASSIGNEE: ${{ inputs.assignee-result }}
         POST: ${{ inputs.post-comment }}
         MARKER: ${{ inputs.marker }}
       run: |
@@ -87,6 +92,7 @@ $MARKER
 | Source branch | $(icon "$SOURCE") \`$SOURCE\` |
 | Size | $(icon "$SIZE") \`$SIZE\` |
 | Auto-label | $(icon "$LABEL") \`$LABEL\` |
+| Assignee | $(icon "$ASSIGNEE") \`$ASSIGNEE\` |
 
 **Overall:** $(icon "$overall") \`$overall\`
 EOF
@@ -102,6 +108,7 @@ EOF
           echo "| Source branch | $(icon "$SOURCE") \`$SOURCE\` |"
           echo "| Size | $(icon "$SIZE") \`$SIZE\` |"
           echo "| Auto-label | $(icon "$LABEL") \`$LABEL\` |"
+          echo "| Assignee | $(icon "$ASSIGNEE") \`$ASSIGNEE\` |"
           echo
           echo "**Overall:** $(icon "$overall") \`$overall\`"
         } >> "$GITHUB_STEP_SUMMARY"

@@ -79,6 +79,19 @@ on:
         type: string
         default: ".github/labeler.yml"
 
+      # ----- Assignee -----
+      enable_pr_assignee:
+        description: Auto-assign the PR to its author.
+        type: boolean
+        default: true
+      pr_assignee_override:
+        description: >
+          Optional comma-separated logins to assign instead of (or in
+          addition to) the PR author. Leave empty to default to the
+          author.
+        type: string
+        default: ""
+
       # ----- Summary -----
       enable_summary_comment:
         description: Post / update a sticky summary comment on the PR.
@@ -88,6 +101,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   # ----------------- Commit Lint (PR only) -----------------
@@ -232,6 +246,7 @@ jobs:
     outputs:
       size-result: ${{ steps.collect.outputs.size }}
       label-result: ${{ steps.collect.outputs.label }}
+      assignee-result: ${{ steps.collect.outputs.assignee }}
     steps:
       - name: Check PR size
         id: size
@@ -249,12 +264,21 @@ jobs:
         with:
           config-path: ${{ inputs.labeler_config_path }}
 
+      - name: Auto-assign PR
+        id: assignee
+        if: inputs.enable_pr_assignee
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-assignee@v1
+        with:
+          assignee: ${{ inputs.pr_assignee_override != '' && inputs.pr_assignee_override || github.event.pull_request.user.login }}
+
       - name: Collect results
         id: collect
         run: |
           {
             echo "size=${{ steps.size.outcome || 'skipped' }}"
             echo "label=${{ steps.labels.outcome || 'skipped' }}"
+            echo "assignee=${{ steps.assignee.outcome || 'skipped' }}"
           } >> "$GITHUB_OUTPUT"
 
   # ----------------- Summary Comment (PR only) -----------------
@@ -272,3 +296,4 @@ jobs:
           source-branch-result: ${{ needs.blocking-checks.outputs.source-branch-result || 'skipped' }}
           size-result: ${{ needs.advisory-checks.outputs.size-result || 'skipped' }}
           label-result: ${{ needs.advisory-checks.outputs.label-result || 'skipped' }}
+          assignee-result: ${{ needs.advisory-checks.outputs.assignee-result || 'skipped' }}
