@@ -81,23 +81,7 @@ runs:
           [ "$r" = "failure" ] && overall="failure"
         done
 
-        body=$(cat <<EOF
-$MARKER
-## PR Validation Summary
-
-| Check | Result |
-|---|---|
-| PR title | $(icon "$TITLE") \`$TITLE\` |
-| PR description | $(icon "$DESCRIPTION") \`$DESCRIPTION\` |
-| Source branch | $(icon "$SOURCE") \`$SOURCE\` |
-| Size | $(icon "$SIZE") \`$SIZE\` |
-| Auto-label | $(icon "$LABEL") \`$LABEL\` |
-| Assignee | $(icon "$ASSIGNEE") \`$ASSIGNEE\` |
-
-**Overall:** $(icon "$overall") \`$overall\`
-EOF
-)
-
+        body_file=$(mktemp)
         {
           echo "## PR Validation Summary"
           echo

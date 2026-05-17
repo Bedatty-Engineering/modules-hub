@@ -116,7 +116,7 @@ jobs:
           fetch-depth: 0
 
       - name: Lint commits
-        uses: Bedatty-Engineering/modules-hub/composite/hub/commitlint@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/commitlint@feat/pr-assignee
         with:
           pr-base-sha: ${{ github.event.pull_request.base.sha }}
           pr-head-sha: ${{ github.event.pull_request.head.sha }}
@@ -130,7 +130,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Lint GitHub workflows
-        uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@feat/pr-assignee
 
   # ----------------- Changed Files Detection -----------------
   changed-files:
@@ -193,7 +193,7 @@ jobs:
       - name: Validate PR title
         id: title
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-title@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-title@feat/pr-assignee
         with:
           types: ${{ inputs.pr_title_types }}
           scopes: ${{ inputs.pr_title_scopes }}
@@ -202,7 +202,7 @@ jobs:
       - name: Validate PR description
         id: description
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-description@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-description@feat/pr-assignee
         with:
           min-length: ${{ inputs.pr_description_min_length }}
 
@@ -210,7 +210,7 @@ jobs:
         id: source
         if: inputs.enforce_source_branches
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-source-branch@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-source-branch@feat/pr-assignee
         with:
           allowed-branches: ${{ inputs.allowed_source_branches }}
           target-branches: ${{ inputs.target_branches_for_source_check }}
@@ -252,7 +252,7 @@ jobs:
         id: size
         if: inputs.enable_pr_size_check
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@feat/pr-assignee
         with:
           fail-on-xl: ${{ inputs.pr_size_fail_on_xl && 'true' || 'false' }}
 
@@ -260,7 +260,7 @@ jobs:
         id: labels
         if: inputs.enable_auto_labeler
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@feat/pr-assignee
         with:
           config-path: ${{ inputs.labeler_config_path }}
 
@@ -268,7 +268,7 @@ jobs:
         id: assignee
         if: inputs.enable_pr_assignee
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-assignee@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-assignee@feat/pr-assignee
         with:
           assignee: ${{ inputs.pr_assignee_override != '' && inputs.pr_assignee_override || github.event.pull_request.user.login }}
 
@@ -289,7 +289,7 @@ jobs:
     if: always() && inputs.is_pull_request && inputs.enable_summary_comment && github.event.pull_request.draft != true
     steps:
       - name: Post summary
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@feat/pr-assignee
         with:
           title-result: ${{ needs.blocking-checks.outputs.title-result || 'skipped' }}
           description-result: ${{ needs.blocking-checks.outputs.description-result || 'skipped' }}
