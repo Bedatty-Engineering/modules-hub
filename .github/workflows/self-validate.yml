@@ -36,7 +36,3 @@ jobs:
   modules-hub:
     name: modules-hub checks
     uses: ./.github/workflows/validate-modules-hub.yml
-
-  codeql:
-    name: CodeQL
-    uses: ./.github/workflows/codeql.yml
