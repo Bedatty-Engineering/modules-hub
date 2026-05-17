@@ -5,7 +5,7 @@ description: >
 
 inputs:
   github-token:
-    description: Token with `pull-requests: write`.
+    description: "Token with `pull-requests: write`."
     required: false
     default: ${{ github.token }}
   title-result:
@@ -111,7 +111,14 @@ EOF
           echo "| Assignee | $(icon "$ASSIGNEE") \`$ASSIGNEE\` |"
           echo
           echo "**Overall:** $(icon "$overall") \`$overall\`"
-        } >> "$GITHUB_STEP_SUMMARY"
+        } > "$body_file"
+
+        # Step summary is the table without the marker.
+        cat "$body_file" >> "$GITHUB_STEP_SUMMARY"
+
+        # PR comment prepends the marker so the next run can find it.
+        comment_file=$(mktemp)
+        { echo "$MARKER"; cat "$body_file"; } > "$comment_file"
 
         echo "overall=$overall" >> "$GITHUB_OUTPUT"
 
@@ -124,15 +131,13 @@ EOF
           --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
           | head -n1 || true)
 
-        tmp=$(mktemp)
-        printf '%s' "$body" > "$tmp"
         if [ -n "$existing_id" ]; then
           gh api -X PATCH "repos/$REPO/issues/comments/$existing_id" \
-            -F body=@"$tmp" >/dev/null
+            -F body=@"$comment_file" >/dev/null
           echo "Updated existing summary comment ($existing_id)."
         else
           gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" \
-            -F body=@"$tmp" >/dev/null
+            -F body=@"$comment_file" >/dev/null
           echo "Posted new summary comment."
         fi
-        rm -f "$tmp"
+        rm -f "$body_file" "$comment_file"
