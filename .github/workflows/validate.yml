@@ -98,6 +98,15 @@ on:
         type: boolean
         default: true
 
+    secrets:
+      repository_operator:
+        description: >
+          Optional PAT used by steps that write to the PR (labels,
+          assignees, sticky comment). When provided, GitHub attributes
+          those actions to the token's owner instead of github-actions[bot].
+          Falls back to the workflow's GITHUB_TOKEN when absent.
+        required: false
+
 permissions:
   contents: read
   pull-requests: write
@@ -254,6 +263,7 @@ jobs:
         continue-on-error: true
         uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@feat/pr-assignee
         with:
+          github-token: ${{ secrets.repository_operator || github.token }}
           fail-on-xl: ${{ inputs.pr_size_fail_on_xl && 'true' || 'false' }}
 
       - name: Auto-label PR
@@ -262,6 +272,7 @@ jobs:
         continue-on-error: true
         uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@feat/pr-assignee
         with:
+          github-token: ${{ secrets.repository_operator || github.token }}
           config-path: ${{ inputs.labeler_config_path }}
 
       - name: Auto-assign PR
@@ -270,6 +281,7 @@ jobs:
         continue-on-error: true
         uses: Bedatty-Engineering/modules-hub/composite/hub/pr-assignee@feat/pr-assignee
         with:
+          github-token: ${{ secrets.repository_operator || github.token }}
           assignee: ${{ inputs.pr_assignee_override != '' && inputs.pr_assignee_override || github.event.pull_request.user.login }}
 
       - name: Collect results
@@ -291,6 +303,7 @@ jobs:
       - name: Post summary
         uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@feat/pr-assignee
         with:
+          github-token: ${{ secrets.repository_operator || github.token }}
           title-result: ${{ needs.blocking-checks.outputs.title-result || 'skipped' }}
           description-result: ${{ needs.blocking-checks.outputs.description-result || 'skipped' }}
           source-branch-result: ${{ needs.blocking-checks.outputs.source-branch-result || 'skipped' }}

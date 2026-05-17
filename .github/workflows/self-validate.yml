@@ -13,6 +13,7 @@ jobs:
   base:
     name: Base validation
     uses: ./.github/workflows/validate.yml
+    secrets: inherit
     with:
       is_pull_request: ${{ github.event_name == 'pull_request' }}
       pr_title_scopes: |
