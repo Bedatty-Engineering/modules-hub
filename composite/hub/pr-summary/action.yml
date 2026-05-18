@@ -2,6 +2,9 @@ name: PR validation summary [composite]
 description: >
   Aggregates the outcomes of upstream validation steps and posts (or
   updates) a sticky comment on the pull request with a status table.
+  Any job in the workflow run that emits ::warning/::error annotations
+  will be automatically surfaced as a collapsible findings section,
+  grouped per job.
 
 inputs:
   github-token:
@@ -60,10 +63,6 @@ inputs:
     description: Outcome of the CodeQL job (success/failure/skipped).
     required: false
     default: "skipped"
-  yamllint-findings:
-    description: Raw yamllint output to surface in a findings toggle.
-    required: false
-    default: ""
   post-comment:
     description: Whether to post / update the sticky comment.
     required: false
@@ -88,6 +87,7 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REPO: ${{ github.repository }}
+        RUN_ID: ${{ github.run_id }}
         TITLE: ${{ inputs.title-result }}
         TITLE_MSG: ${{ inputs.title-message }}
         DESCRIPTION: ${{ inputs.description-result }}
@@ -101,8 +101,6 @@ runs:
         ASSIGNEE: ${{ inputs.assignee-result }}
         ASSIGNEE_MSG: ${{ inputs.assignee-message }}
         CODEQL: ${{ inputs.codeql-result }}
-        YAMLLINT_FINDINGS: ${{ inputs.yamllint-findings }}
-        PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
         POST: ${{ inputs.post-comment }}
         MARKER: ${{ inputs.marker }}
       run: |
@@ -173,39 +171,42 @@ runs:
         } > "$body_file"
         rm -f "$overall_block"
 
-        # yamllint findings toggle — rendered directly from captured job output.
-        if [ -n "${YAMLLINT_FINDINGS:-}" ]; then
-          {
-            echo
-            echo "<details>"
-            echo "<summary><strong>YAML lint findings</strong> — expand to review</summary>"
-            echo
-            echo '```'
-            printf '%s\n' "$YAMLLINT_FINDINGS"
-            echo '```'
-            echo
-            echo "</details>"
-          } >> "$body_file"
-        fi
-
-        # CodeQL findings toggle — query code-scanning alerts for this PR ref.
-        if [ "$CODEQL" != "skipped" ] && [ -n "${PR_NUMBER:-}" ] && [ -n "${PR_REF:-}" ]; then
-          alerts=$(gh api \
-            "repos/$REPO/code-scanning/alerts?ref=${PR_REF}&state=open&per_page=100" \
-            --jq '.' 2>/dev/null || echo "[]")
-          count=$(printf '%s' "$alerts" | jq -r 'length')
-          if [ "$count" -gt 0 ]; then
+        # Generic findings — iterate every completed job in this workflow run,
+        # fetch its GitHub Check Run annotations, and render a collapsible
+        # block per job. Any step that emits ::warning/::error automatically
+        # appears here without requiring changes to the individual jobs.
+        if [ -n "${PR_NUMBER:-}" ] && [ -n "${RUN_ID:-}" ]; then
+          findings_block=$(mktemp)
+          while IFS=$'\t' read -r job_id job_name; do
+            annotations=$(gh api \
+              "repos/$REPO/check-runs/$job_id/annotations" \
+              --paginate --jq '.' 2>/dev/null || echo "[]")
+            count=$(printf '%s' "$annotations" | jq 'length')
+            [ "$count" -eq 0 ] && continue
             {
-              echo
               echo "<details>"
-              echo "<summary><strong>CodeQL findings:</strong> $count alert(s) — expand to review</summary>"
+              echo "<summary><strong>$job_name</strong>: $count finding(s) — expand to review</summary>"
               echo
-              printf '%s' "$alerts" | jq -r \
-                '.[] | "- **`\(.rule.id)`** [`\(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)`](\(.html_url)) — \(.most_recent_instance.message.text | split("\n")[0])"'
+              echo '```'
+              printf '%s' "$annotations" | jq -r \
+                '.[] | "[\(.annotation_level | ascii_upcase)] \(.path):\(.start_line) — \(.message)"'
+              echo '```'
               echo
               echo "</details>"
-            } >> "$body_file"
+            } >> "$findings_block"
+          done < <(
+            gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+              --paginate --jq \
+              '.jobs[] | select(.status == "completed") | [(.id | tostring), .name] | @tsv' \
+              2>/dev/null || true
+          )
+          if [ -s "$findings_block" ]; then
+            echo >> "$body_file"
+            echo "### Findings" >> "$body_file"
+            echo >> "$body_file"
+            cat "$findings_block" >> "$body_file"
           fi
+          rm -f "$findings_block"
         fi
 
         # Step summary is the table without the marker.

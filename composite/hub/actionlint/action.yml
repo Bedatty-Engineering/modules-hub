@@ -23,4 +23,6 @@ runs:
 
     - name: Lint workflows
       shell: bash
-      run: actionlint -color
+      run: |
+        fmt='{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}}::{{$err.Message}} [{{$err.RuleID}}]{{"\n"}}{{end}}'
+        actionlint -format "$fmt"

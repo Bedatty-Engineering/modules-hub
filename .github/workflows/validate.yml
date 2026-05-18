@@ -276,8 +276,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [pr-hygiene, changed-files]
     if: needs.changed-files.outputs.yaml_files != ''
-    outputs:
-      findings: ${{ steps.lint.outputs.findings }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -286,23 +284,15 @@ jobs:
         run: pip install --user yamllint==1.35.1
 
       - name: Lint changed YAML files
-        id: lint
         env:
           FILES: ${{ needs.changed-files.outputs.yaml_files }}
         run: |
           set -euo pipefail
-          exit_code=0
+          # -f github emits ::warning/::error annotations picked up by the
+          # Annotations API and surfaced in the pr-summary findings section.
           # FILES is a space-separated list; word splitting is intentional.
           # shellcheck disable=SC2086
-          output=$(yamllint -d relaxed $FILES 2>&1) || exit_code=$?
-          if [ -n "$output" ]; then
-            {
-              echo "findings<<YAMLLINT_EOF"
-              printf '%s\n' "$output"
-              echo "YAMLLINT_EOF"
-            } >> "$GITHUB_OUTPUT"
-          fi
-          exit "$exit_code"
+          yamllint -f github -d relaxed $FILES
 
   # ----------------- Tier 2: Advisory Checks (PR only) -----------------
   advisory-checks:
@@ -371,7 +361,7 @@ jobs:
   pr-summary:
     name: PR summary
     runs-on: ubuntu-latest
-    needs: [pr-hygiene, advisory-checks, codeql, yamllint]
+    needs: [pr-hygiene, advisory-checks, codeql]
     if: always() && inputs.is_pull_request && inputs.enable_summary_comment && github.event.pull_request.draft != true
     steps:
       - name: Post summary
@@ -391,4 +381,3 @@ jobs:
           assignee-result: ${{ needs.advisory-checks.outputs.assignee-result || 'skipped' }}
           assignee-message: ${{ needs.advisory-checks.outputs.assignee-message }}
           codeql-result: ${{ needs.codeql.result || 'skipped' }}
-          yamllint-findings: ${{ needs.yamllint.outputs.findings || '' }}
