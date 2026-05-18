@@ -359,7 +359,7 @@ jobs:
   pr-summary:
     name: PR summary
     runs-on: ubuntu-latest
-    needs: [pr-hygiene, advisory-checks]
+    needs: [pr-hygiene, advisory-checks, codeql]
     if: always() && inputs.is_pull_request && inputs.enable_summary_comment && github.event.pull_request.draft != true
     steps:
       - name: Post summary
@@ -378,3 +378,4 @@ jobs:
           label-message: ${{ needs.advisory-checks.outputs.label-message }}
           assignee-result: ${{ needs.advisory-checks.outputs.assignee-result || 'skipped' }}
           assignee-message: ${{ needs.advisory-checks.outputs.assignee-message }}
+          codeql-result: ${{ needs.codeql.result || 'skipped' }}
