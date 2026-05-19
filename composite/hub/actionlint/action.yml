@@ -27,7 +27,7 @@ runs:
         # Heredoc avoids the {{"\n"}} quoted-string parse error and keeps
         # each template part under the line-length limit.
         cat > /tmp/actionlint-fmt.tmpl << 'TMPL'
-        {{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}}::{{$err.Message}} [{{$err.RuleID}}]
-        {{end}}
-        TMPL
+{{range $e := .}}::error file={{$e.Filepath}},line={{$e.Line}}::{{$e.Message}} [{{$e.RuleID}}]
+{{end}}
+TMPL
         actionlint -format "$(cat /tmp/actionlint-fmt.tmpl)"

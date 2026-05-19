@@ -129,7 +129,8 @@ runs:
           {
             echo "<details>"
             overall_icon=$(icon "$overall")
-            echo "<summary><strong>Overall:</strong> $overall_icon <code>$overall</code> — expand for error details</summary>"
+            sum_open="<summary><strong>Overall:</strong> $overall_icon <code>$overall</code>"
+            echo "$sum_open — expand for error details</summary>"
             echo
             # Emit one bullet per failing check with the captured message.
             print_err() {
