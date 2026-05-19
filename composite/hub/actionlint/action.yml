@@ -24,10 +24,7 @@ runs:
     - name: Lint workflows
       shell: bash
       run: |
-        # Heredoc avoids the {{"\n"}} quoted-string parse error and keeps
-        # each template part under the line-length limit.
-        cat > /tmp/actionlint-fmt.tmpl << 'TMPL'
-{{range $e := .}}::error file={{$e.Filepath}},line={{$e.Line}}::{{$e.Message}} [{{$e.RuleID}}]
-{{end}}
-TMPL
+        fmt='{{range $e := .}}::error file={{$e.Filepath}},line={{$e.Line}}'
+        fmt="${fmt}"'::{{$e.Message}} [{{$e.RuleID}}]'
+        printf '%s\n{{end}}\n' "$fmt" > /tmp/actionlint-fmt.tmpl
         actionlint -format "$(cat /tmp/actionlint-fmt.tmpl)"
