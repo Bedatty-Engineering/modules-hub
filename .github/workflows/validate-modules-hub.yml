@@ -92,7 +92,8 @@ jobs:
             while IFS= read -r line; do
               ref=$(printf '%s' "$line" \
                 | sed -E -e 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//' \
-                         -e 's/^["'\'']//' -e 's/["'\'']$//')
+                         -e 's/^["'\'']//' -e 's/["'\'']$//' \
+                         -e 's/[[:space:]]*#.*//')
               [ -z "$ref" ] && continue
               case "$ref" in
                 ./*) continue ;;
