@@ -192,6 +192,12 @@ runs:
             annotations=$(gh api \
               "repos/$REPO/check-runs/$job_id/annotations" \
               --paginate --jq '.' 2>/dev/null || echo "[]")
+            # Strip GitHub platform advisory about on.push — it is a bootstrap
+            # warning that resolves after the first push to main triggers the
+            # direct CodeQL scan; it is not actionable for PR contributors.
+            annotations=$(printf '%s' "$annotations" | jq '[
+              .[] | select(.message | test("Please specify an on.push hook") | not)
+            ]')
             count=$(printf '%s' "$annotations" | jq 'length')
             [ "$count" -eq 0 ] && continue
             # pick the worst level present to show in the summary line
