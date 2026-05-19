@@ -207,7 +207,7 @@ runs:
               echo "<summary>$level_icon <strong>$job_name</strong>: $count finding(s) — expand to review</summary>"
               echo
               printf '%s' "$annotations" | jq -r \
-                '.[] | (if .annotation_level == "failure" then "❌" elif .annotation_level == "warning" then "⚠️" else "🔵" end) + " **\(.path):\(.start_line)** — \(.message)"'
+                '.[] | (if .annotation_level == "failure" then "❌" elif .annotation_level == "warning" then "⚠️" else "🔵" end) + " `\(.path):\(.start_line)` — \(.message)"'
               echo
               echo "</details>"
             } >> "$findings_block"
