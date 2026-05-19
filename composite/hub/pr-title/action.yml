@@ -39,6 +39,9 @@ outputs:
   outcome:
     description: success | failure
     value: ${{ steps.validate.outputs.outcome }}
+  message:
+    description: Human-readable error message when outcome is failure.
+    value: ${{ steps.validate.outputs.message }}
 
 runs:
   using: composite
@@ -54,14 +57,20 @@ runs:
       run: |
         set -euo pipefail
 
+        fail() {
+          local msg="$1"
+          echo "::error::$msg"
+          {
+            echo "outcome=failure"
+            echo "message=$msg"
+          } >> "$GITHUB_OUTPUT"
+          exit 1
+        }
+
         normalize() { printf '%s' "$1" | tr '|' '\n' | sed '/^[[:space:]]*$/d' | tr -d ' '; }
 
         title="$PR_TITLE"
-        if [ -z "$title" ]; then
-          echo "::error::PR title is empty"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          exit 1
-        fi
+        [ -z "$title" ] && fail "PR title is empty"
 
         # Match: type(scope)!: subject  OR  type!: subject
         # Regex stored in a variable so bash's `[[ =~ ]]` parser does not
@@ -72,39 +81,26 @@ runs:
           scope="${BASH_REMATCH[3]}"
           subject="${BASH_REMATCH[5]}"
         else
-          echo "::error::Title does not match Conventional Commits: '<type>(<scope>): <subject>'"
-          echo "  got: $title"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          exit 1
+          fail "Title does not match Conventional Commits: '<type>(<scope>): <subject>' — got: $title"
         fi
 
         allowed_types=$(normalize "$ALLOWED_TYPES")
         if ! printf '%s\n' "$allowed_types" | grep -Fxq "$type"; then
-          echo "::error::Type '$type' is not allowed. Allowed: $(echo "$allowed_types" | paste -sd ',' -)"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          exit 1
+          fail "Type '$type' is not allowed. Allowed: $(echo "$allowed_types" | paste -sd ',' -)"
         fi
 
         if [ "${REQUIRE_SCOPE,,}" = "true" ] && [ -z "$scope" ]; then
-          echo "::error::Scope is required but missing from title"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          exit 1
+          fail "Scope is required but missing from title"
         fi
 
         if [ -n "$ALLOWED_SCOPES" ] && [ -n "$scope" ]; then
           allowed_scopes=$(normalize "$ALLOWED_SCOPES")
           if ! printf '%s\n' "$allowed_scopes" | grep -Fxq "$scope"; then
-            echo "::error::Scope '$scope' is not allowed. Allowed: $(echo "$allowed_scopes" | paste -sd ',' -)"
-            echo "outcome=failure" >> "$GITHUB_OUTPUT"
-            exit 1
+            fail "Scope '$scope' is not allowed. Allowed: $(echo "$allowed_scopes" | paste -sd ',' -)"
           fi
         fi
 
-        if [ -z "$subject" ]; then
-          echo "::error::Subject is empty"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          exit 1
-        fi
+        [ -z "$subject" ] && fail "Subject is empty"
 
         echo "PR title OK: type=$type scope=${scope:-<none>}"
         echo "outcome=success" >> "$GITHUB_OUTPUT"
