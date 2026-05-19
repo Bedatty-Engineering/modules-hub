@@ -177,20 +177,37 @@ runs:
         # appears here without requiring changes to the individual jobs.
         if [ -n "${PR_NUMBER:-}" ] && [ -n "${RUN_ID:-}" ]; then
           findings_block=$(mktemp)
+
+          finding_icon() {
+            case "$1" in
+              warning) printf '⚠️' ;;
+              failure) printf '❌' ;;
+              *)       printf '🔵' ;;
+            esac
+          }
+
           while IFS=$'\t' read -r job_id job_name; do
             annotations=$(gh api \
               "repos/$REPO/check-runs/$job_id/annotations" \
               --paginate --jq '.' 2>/dev/null || echo "[]")
             count=$(printf '%s' "$annotations" | jq 'length')
             [ "$count" -eq 0 ] && continue
+            # pick the worst level present to show in the summary line
+            has_error=$(printf '%s' "$annotations" | jq -r 'any(.[]; .annotation_level == "failure")')
+            has_warn=$(printf '%s' "$annotations" | jq -r 'any(.[]; .annotation_level == "warning")')
+            if [ "$has_error" = "true" ]; then
+              level_icon="❌"
+            elif [ "$has_warn" = "true" ]; then
+              level_icon="⚠️"
+            else
+              level_icon="🔵"
+            fi
             {
               echo "<details>"
-              echo "<summary><strong>$job_name</strong>: $count finding(s) — expand to review</summary>"
+              echo "<summary>$level_icon <strong>$job_name</strong>: $count finding(s) — expand to review</summary>"
               echo
-              echo '```'
               printf '%s' "$annotations" | jq -r \
-                '.[] | "[\(.annotation_level | ascii_upcase)] \(.path):\(.start_line) — \(.message)"'
-              echo '```'
+                '.[] | (if .annotation_level == "failure" then "❌" elif .annotation_level == "warning" then "⚠️" else "🔵" end) + " **\(.path):\(.start_line)** — \(.message)"'
               echo
               echo "</details>"
             } >> "$findings_block"
@@ -201,9 +218,13 @@ runs:
               2>/dev/null || true
           )
           if [ -s "$findings_block" ]; then
-            echo >> "$body_file"
-            echo "### Findings" >> "$body_file"
-            echo >> "$body_file"
+            {
+              echo
+              echo "---"
+              echo
+              echo "### 🔍 Findings"
+              echo
+            } >> "$body_file"
             cat "$findings_block" >> "$body_file"
           fi
           rm -f "$findings_block"
