@@ -128,7 +128,8 @@ runs:
         else
           {
             echo "<details>"
-            echo "<summary><strong>Overall:</strong> $(icon "$overall") <code>$overall</code> — expand for error details</summary>"
+            overall_icon=$(icon "$overall")
+            echo "<summary><strong>Overall:</strong> $overall_icon <code>$overall</code> — expand for error details</summary>"
             echo
             # Emit one bullet per failing check with the captured message.
             print_err() {
@@ -207,8 +208,12 @@ runs:
               echo "<summary>$level_icon <strong>$job_name</strong>: $count finding(s) — expand to review</summary>"
               echo
               echo '```'
-              printf '%s' "$annotations" | jq -r \
-                '.[] | "[" + (if .annotation_level == "failure" then "ERROR" elif .annotation_level == "warning" then "WARNING" else (.annotation_level | ascii_upcase) end) + "] \(.path):\(.start_line) — \(.message)"'
+              jq_fmt='.[] |
+                (if .annotation_level == "failure" then "ERROR"
+                 elif .annotation_level == "warning" then "WARNING"
+                 else (.annotation_level | ascii_upcase) end) as $lvl |
+                "[" + $lvl + "] \(.path):\(.start_line) — \(.message)"'
+              printf '%s' "$annotations" | jq -r "$jq_fmt"
               echo '```'
               echo
               echo "</details>"

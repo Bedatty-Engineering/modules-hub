@@ -62,7 +62,12 @@ runs:
           } >> "$GITHUB_OUTPUT"
           exit 1
         }
-        trap 'rc=$?; if [ $rc -ne 0 ] && [ -z "${FAIL_HANDLED:-}" ]; then FAIL_HANDLED=1; fail "Unexpected failure (last command: ${BASH_COMMAND})"; fi' ERR
+        _on_err() {
+          [ $? -ne 0 ] && [ -z "${FAIL_HANDLED:-}" ] || return 0
+          FAIL_HANDLED=1
+          fail "Unexpected failure (last command: ${BASH_COMMAND})"
+        }
+        trap _on_err ERR
 
         [ -z "${PR_NUMBER:-}" ] && fail "pr-labels requires a pull_request context"
 

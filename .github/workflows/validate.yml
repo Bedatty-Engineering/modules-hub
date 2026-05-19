@@ -191,7 +191,10 @@ jobs:
             [ "$r" = "failure" ] && fail=1
           done
           if [ "$fail" -eq 1 ]; then
-            echo "::error::PR hygiene failed (commitlint=$commitlint title=$title description=$description source=$source)"
+            msg="PR hygiene failed"
+            msg="$msg (commitlint=$commitlint title=$title"
+            msg="$msg description=$description source=$source)"
+            echo "::error::$msg"
             exit 1
           fi
           echo "All hygiene checks passed."
@@ -335,7 +338,10 @@ jobs:
         uses: Bedatty-Engineering/modules-hub/composite/hub/pr-assignee@feat/pr-assignee
         with:
           github-token: ${{ secrets.repository_operator || github.token }}
-          assignee: ${{ inputs.pr_assignee_override != '' && inputs.pr_assignee_override || github.event.pull_request.user.login }}
+          assignee: >-
+            ${{ inputs.pr_assignee_override != '' &&
+            inputs.pr_assignee_override ||
+            github.event.pull_request.user.login }}
 
       - name: Collect results
         id: collect
