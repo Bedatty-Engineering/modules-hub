@@ -292,7 +292,9 @@ jobs:
           # Annotations API and surfaced in the pr-summary findings section.
           # FILES is a space-separated list; word splitting is intentional.
           # shellcheck disable=SC2086
-          yamllint -f github -d relaxed $FILES
+          yamllint -f github \
+            -d '{extends: relaxed, rules: {line-length: {max: 120, level: warning}}}' \
+            $FILES
 
   # ----------------- Tier 2: Advisory Checks (PR only) -----------------
   advisory-checks:
