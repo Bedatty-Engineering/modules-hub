@@ -24,5 +24,8 @@ runs:
     - name: Lint workflows
       shell: bash
       run: |
-        fmt='{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}}::{{$err.Message}} [{{$err.RuleID}}]{{"\n"}}{{end}}'
-        actionlint -format "$fmt"
+        # printf converts \n to a literal newline, which Go templates handle
+        # natively — avoiding the {{"\n"}} quoted-string parse error.
+        printf '{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}}::{{$err.Message}} [{{$err.RuleID}}]\n{{end}}' \
+          > /tmp/actionlint-fmt.tmpl
+        actionlint -format "$(cat /tmp/actionlint-fmt.tmpl)"
