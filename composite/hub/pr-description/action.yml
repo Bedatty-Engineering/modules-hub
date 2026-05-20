@@ -19,6 +19,9 @@ outputs:
   outcome:
     description: success | failure
     value: ${{ steps.validate.outputs.outcome }}
+  message:
+    description: Human-readable error message when outcome is failure.
+    value: ${{ steps.validate.outputs.message }}
 
 runs:
   using: composite
@@ -32,12 +35,18 @@ runs:
       run: |
         set -euo pipefail
 
-        body="$PR_BODY"
-        if [ -z "$body" ]; then
-          echo "::error::PR body is empty"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+        fail() {
+          local msg="$1"
+          echo "::error::$msg"
+          {
+            echo "outcome=failure"
+            echo "message=$msg"
+          } >> "$GITHUB_OUTPUT"
           exit 1
-        fi
+        }
+
+        body="$PR_BODY"
+        [ -z "$body" ] && fail "PR body is empty"
 
         # Strip HTML comments (<!-- ... -->), markdown headings, list bullets
         # and unchecked task boxes; whatever's left is "real" content.
@@ -51,9 +60,7 @@ runs:
         length=${#compact}
 
         if [ "$length" -lt "$MIN_LENGTH" ]; then
-          echo "::error::PR description has only $length meaningful chars (min: $MIN_LENGTH)"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          exit 1
+          fail "PR description has only $length meaningful chars (min: $MIN_LENGTH)"
         fi
 
         echo "PR description OK ($length chars of substance)"
