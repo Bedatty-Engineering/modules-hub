@@ -24,6 +24,9 @@ outputs:
   outcome:
     description: success | failure | skipped
     value: ${{ steps.label.outputs.outcome }}
+  message:
+    description: Human-readable error message when outcome is failure.
+    value: ${{ steps.label.outputs.message }}
   applied:
     description: Space-separated list of labels applied (or kept).
     value: ${{ steps.label.outputs.applied }}
@@ -50,11 +53,23 @@ runs:
       run: |
         set -euo pipefail
 
-        if [ -z "${PR_NUMBER:-}" ]; then
-          echo "::error::pr-labels requires a pull_request context"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+        fail() {
+          local msg="$1"
+          echo "::error::$msg"
+          {
+            echo "outcome=failure"
+            echo "message=$msg"
+          } >> "$GITHUB_OUTPUT"
           exit 1
-        fi
+        }
+        _on_err() {
+          [ $? -ne 0 ] && [ -z "${FAIL_HANDLED:-}" ] || return 0
+          FAIL_HANDLED=1
+          fail "Unexpected failure (last command: ${BASH_COMMAND})"
+        }
+        trap _on_err ERR
+
+        [ -z "${PR_NUMBER:-}" ] && fail "pr-labels requires a pull_request context"
 
         if [ ! -f "$CONFIG_PATH" ]; then
           echo "Labeler config '$CONFIG_PATH' not found; skipping."

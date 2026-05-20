@@ -40,8 +40,8 @@ jobs:
     name: Detect changed composite files
     runs-on: ubuntu-latest
     outputs:
-      action_files: ${{ steps.detect.outputs.action_all }}
-      composite_dirs: ${{ steps.detect.outputs.composite_dirs }}
+      action_files: ${{ steps.detect.outputs.action_all_all_changed_files }}
+      composite_dirs: ${{ steps.detect.outputs.composite_dirs_all_changed_files }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -62,8 +62,8 @@ jobs:
 
       - name: Summarize detection
         run: |
-          echo "action_all=${{ steps.detect.outputs.action_all }}"
-          echo "composite_dirs=${{ steps.detect.outputs.composite_dirs }}"
+          echo "action_all=${{ steps.detect.outputs.action_all_all_changed_files }}"
+          echo "composite_dirs=${{ steps.detect.outputs.composite_dirs_all_changed_files }}"
 
   # ----------------- Pinned Actions Check -----------------
   # Every `uses:` in a composite action.yml must be either a local repo
@@ -92,7 +92,8 @@ jobs:
             while IFS= read -r line; do
               ref=$(printf '%s' "$line" \
                 | sed -E -e 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//' \
-                         -e 's/^["'\'']//' -e 's/["'\'']$//')
+                         -e 's/^["'\'']//' -e 's/["'\'']$//' \
+                         -e 's/[[:space:]]*#.*//')
               [ -z "$ref" ] && continue
               case "$ref" in
                 ./*) continue ;;

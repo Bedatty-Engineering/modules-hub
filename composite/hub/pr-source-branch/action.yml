@@ -30,6 +30,9 @@ outputs:
   outcome:
     description: success | failure | skipped
     value: ${{ steps.validate.outputs.outcome }}
+  message:
+    description: Human-readable error message when outcome is failure.
+    value: ${{ steps.validate.outputs.message }}
 
 runs:
   using: composite
@@ -45,6 +48,16 @@ runs:
       run: |
         set -euo pipefail
 
+        fail() {
+          local msg="$1"
+          echo "::error::$msg"
+          {
+            echo "outcome=failure"
+            echo "message=$msg"
+          } >> "$GITHUB_OUTPUT"
+          exit 1
+        }
+
         normalize() { printf '%s' "$1" | tr '|' '\n' | sed '/^[[:space:]]*$/d' | tr -d ' '; }
 
         targets=$(normalize "$TARGETS")
@@ -54,11 +67,7 @@ runs:
           exit 0
         fi
 
-        if [ -z "$SRC" ]; then
-          echo "::error::Source branch is empty"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          exit 1
-        fi
+        [ -z "$SRC" ] && fail "Source branch is empty"
 
         allowed=$(normalize "$ALLOWED")
         while IFS= read -r pattern; do
@@ -84,6 +93,4 @@ runs:
           esac
         done <<< "$allowed"
 
-        echo "::error::Source '$SRC' is not allowed for target '$TGT'. Allowed: $(echo "$allowed" | paste -sd ',' -)"
-        echo "outcome=failure" >> "$GITHUB_OUTPUT"
-        exit 1
+        fail "Source '$SRC' is not allowed for target '$TGT'. Allowed: $(echo "$allowed" | paste -sd ',' -)"

@@ -1,8 +1,18 @@
 name: CodeQL
 
 on:
-  pull_request:
-    branches: [main, dev, stg]
+  push:
+    branches: [main]
+  workflow_call:
+    inputs:
+      languages:
+        description: >
+          JSON array of CodeQL languages to analyze. Defaults to both
+          `actions` and `javascript-typescript`. Callers should narrow
+          this set when only a subset of file types changed.
+        type: string
+        required: false
+        default: '["actions","javascript-typescript"]'
   schedule:
     - cron: '39 20 * * 2'
   workflow_dispatch:
@@ -25,7 +35,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [actions, javascript-typescript]
+        # On workflow_call the caller passes a narrowed JSON array; on
+        # schedule / workflow_dispatch the default kicks in and scans both.
+        language: ${{ fromJSON(inputs.languages || '["actions","javascript-typescript"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
