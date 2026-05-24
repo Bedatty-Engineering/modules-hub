@@ -1,10 +1,9 @@
 name: PR validation summary [composite]
 description: >
-  Aggregates the outcomes of upstream validation steps and posts (or
-  updates) a sticky comment on the pull request with a status table.
-  Any job in the workflow run that emits ::warning/::error annotations
-  will be automatically surfaced as a collapsible findings section,
-  grouped per job.
+  Posts (or updates) a sticky PR comment with a validation status table.
+  Supports two phases: the default phase posts the hygiene table immediately;
+  findings-only mode (run after all jobs complete) updates the same comment
+  with a collapsible findings section sourced from the GitHub Annotations API.
 
 inputs:
   github-token:
@@ -59,10 +58,13 @@ inputs:
     description: Error message from the auto-assign check (when failed).
     required: false
     default: ""
-  codeql-result:
-    description: Outcome of the CodeQL job (success/failure/skipped).
+  findings-only:
+    description: >
+      When true, skip posting the table and only update the findings section
+      of the existing sticky comment. Use in a second job that runs after all
+      checks complete so findings from every job are captured.
     required: false
-    default: "skipped"
+    default: "false"
   post-comment:
     description: Whether to post / update the sticky comment.
     required: false
@@ -100,12 +102,13 @@ runs:
         LABEL_MSG: ${{ inputs.label-message }}
         ASSIGNEE: ${{ inputs.assignee-result }}
         ASSIGNEE_MSG: ${{ inputs.assignee-message }}
-        CODEQL: ${{ inputs.codeql-result }}
+        FINDINGS_ONLY: ${{ inputs.findings-only }}
         POST: ${{ inputs.post-comment }}
         MARKER: ${{ inputs.marker }}
       run: |
         set -euo pipefail
 
+        # ── helpers ────────────────────────────────────────────────────────────
         icon() {
           case "$1" in
             success) printf '✅' ;;
@@ -115,13 +118,118 @@ runs:
           esac
         }
 
+        find_comment() {
+          gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
+            | head -n1 || true
+        }
+
+        # Fetch annotations for every completed job in the run, excluding the
+        # summary and findings jobs themselves (they never emit annotations).
+        fetch_findings() {
+          local block="$1"
+          local jq_jobs
+          jq_jobs='.jobs[] | select(.status == "completed")'
+          jq_jobs+=' | select(.name | test("PR (summary|findings)") | not)'
+          jq_jobs+=' | [(.id | tostring), .name] | @tsv'
+
+          local jq_fmt
+          jq_fmt='.[] |
+            select(.message | test("Please specify an on.push hook") | not) |
+            (if .annotation_level == "failure" then "ERROR"
+             elif .annotation_level == "warning" then "WARNING"
+             else (.annotation_level | ascii_upcase) end) as $lvl |
+            "[" + $lvl + "] \(.path):\(.start_line) — \(.message)"'
+
+          while IFS=$'\t' read -r job_id job_name; do
+            local ann
+            ann=$(gh api "repos/$REPO/check-runs/$job_id/annotations" \
+              --paginate --jq '.' 2>/dev/null || echo "[]")
+            ann=$(printf '%s' "$ann" | jq '[
+              .[] | select(.message | test("Please specify an on.push hook") | not)
+            ]')
+            local count
+            count=$(printf '%s' "$ann" | jq 'length')
+            [ "$count" -eq 0 ] && continue
+
+            local has_error has_warn level_icon
+            has_error=$(printf '%s' "$ann" | jq -r 'any(.[]; .annotation_level == "failure")')
+            has_warn=$(printf '%s' "$ann" | jq -r 'any(.[]; .annotation_level == "warning")')
+            if [ "$has_error" = "true" ]; then level_icon="❌"
+            elif [ "$has_warn" = "true" ];  then level_icon="⚠️"
+            else                                  level_icon="🔵"
+            fi
+
+            {
+              echo "<details>"
+              echo "<summary>$level_icon <strong>$job_name</strong>: $count finding(s) — expand to review</summary>"
+              echo
+              echo '```'
+              printf '%s' "$ann" | jq -r "$jq_fmt"
+              echo '```'
+              echo
+              echo "</details>"
+            } >> "$block"
+          done < <(
+            gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+              --paginate --jq "$jq_jobs" 2>/dev/null || true
+          )
+        }
+
+        # ── Phase 2: findings-only update ─────────────────────────────────────
+        if [ "${FINDINGS_ONLY,,}" = "true" ]; then
+          if [ -z "${PR_NUMBER:-}" ] || [ -z "${RUN_ID:-}" ]; then
+            echo "No PR context; skipping findings update."
+            exit 0
+          fi
+
+          existing_id=$(find_comment)
+          if [ -z "$existing_id" ]; then
+            echo "No existing summary comment found; skipping findings update."
+            exit 0
+          fi
+
+          findings_block=$(mktemp)
+          fetch_findings "$findings_block"
+
+          if [ -s "$findings_block" ]; then
+            # Strip the old findings section (everything from the '---' separator
+            # onwards) then append freshly fetched findings.
+            existing_body=$(gh api \
+              "repos/$REPO/issues/comments/$existing_id" --jq '.body')
+            base_body=$(printf '%s' "$existing_body" \
+              | awk '/^---$/{exit} {print}')
+
+            comment_file=$(mktemp)
+            {
+              echo "$MARKER"
+              printf '%s\n' "$base_body"
+              echo
+              echo "---"
+              echo
+              echo "### 🔍 Findings"
+              echo
+              cat "$findings_block"
+            } > "$comment_file"
+
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing_id" \
+              -F body=@"$comment_file" >/dev/null
+            echo "Updated comment with findings."
+            rm -f "$comment_file"
+          else
+            echo "No findings to report."
+          fi
+
+          rm -f "$findings_block"
+          exit 0
+        fi
+
+        # ── Phase 1: post hygiene table ────────────────────────────────────────
         overall="success"
-        for r in "$TITLE" "$DESCRIPTION" "$SOURCE" "$SIZE" "$LABEL" "$ASSIGNEE" "$CODEQL"; do
+        for r in "$TITLE" "$DESCRIPTION" "$SOURCE" "$SIZE" "$LABEL" "$ASSIGNEE"; do
           [ "$r" = "failure" ] && overall="failure"
         done
 
-        # Build the overall block: a single-line success or a <details>
-        # dropdown when any check failed.
         overall_block=$(mktemp)
         if [ "$overall" = "success" ]; then
           echo "**Overall:** $(icon "$overall") \`$overall\`" > "$overall_block"
@@ -132,7 +240,6 @@ runs:
             sum_open="<summary><strong>Overall:</strong> $overall_icon <code>$overall</code>"
             echo "$sum_open — expand for error details</summary>"
             echo
-            # Emit one bullet per failing check with the captured message.
             print_err() {
               local label="$1" outcome="$2" msg="$3"
               if [ "$outcome" = "failure" ]; then
@@ -143,13 +250,12 @@ runs:
                 fi
               fi
             }
-            print_err "PR title"        "$TITLE"       "$TITLE_MSG"
-            print_err "PR description"  "$DESCRIPTION" "$DESCRIPTION_MSG"
-            print_err "Source branch"   "$SOURCE"      "$SOURCE_MSG"
-            print_err "Size"            "$SIZE"        "$SIZE_MSG"
-            print_err "Auto-label"      "$LABEL"       "$LABEL_MSG"
-            print_err "Assignee"        "$ASSIGNEE"    "$ASSIGNEE_MSG"
-            print_err "CodeQL"          "$CODEQL"      "CodeQL analysis failed — check the workflow run for details"
+            print_err "PR title"       "$TITLE"       "$TITLE_MSG"
+            print_err "PR description" "$DESCRIPTION" "$DESCRIPTION_MSG"
+            print_err "Source branch"  "$SOURCE"      "$SOURCE_MSG"
+            print_err "Size"           "$SIZE"        "$SIZE_MSG"
+            print_err "Auto-label"     "$LABEL"       "$LABEL_MSG"
+            print_err "Assignee"       "$ASSIGNEE"    "$ASSIGNEE_MSG"
             echo
             echo "</details>"
           } > "$overall_block"
@@ -167,87 +273,13 @@ runs:
           echo "| Size | $(icon "$SIZE") \`$SIZE\` |"
           echo "| Auto-label | $(icon "$LABEL") \`$LABEL\` |"
           echo "| Assignee | $(icon "$ASSIGNEE") \`$ASSIGNEE\` |"
-          echo "| CodeQL | $(icon "$CODEQL") \`$CODEQL\` |"
           echo
           cat "$overall_block"
         } > "$body_file"
         rm -f "$overall_block"
 
-        # Generic findings — iterate every completed job in this workflow run,
-        # fetch its GitHub Check Run annotations, and render a collapsible
-        # block per job. Any step that emits ::warning/::error automatically
-        # appears here without requiring changes to the individual jobs.
-        if [ -n "${PR_NUMBER:-}" ] && [ -n "${RUN_ID:-}" ]; then
-          findings_block=$(mktemp)
-
-          finding_icon() {
-            case "$1" in
-              warning) printf '⚠️' ;;
-              failure) printf '❌' ;;
-              *)       printf '🔵' ;;
-            esac
-          }
-
-          while IFS=$'\t' read -r job_id job_name; do
-            annotations=$(gh api \
-              "repos/$REPO/check-runs/$job_id/annotations" \
-              --paginate --jq '.' 2>/dev/null || echo "[]")
-            # Strip GitHub platform advisory about on.push — it is a bootstrap
-            # warning that resolves after the first push to main triggers the
-            # direct CodeQL scan; it is not actionable for PR contributors.
-            annotations=$(printf '%s' "$annotations" | jq '[
-              .[] | select(.message | test("Please specify an on.push hook") | not)
-            ]')
-            count=$(printf '%s' "$annotations" | jq 'length')
-            [ "$count" -eq 0 ] && continue
-            # pick the worst level present to show in the summary line
-            has_error=$(printf '%s' "$annotations" | jq -r 'any(.[]; .annotation_level == "failure")')
-            has_warn=$(printf '%s' "$annotations" | jq -r 'any(.[]; .annotation_level == "warning")')
-            if [ "$has_error" = "true" ]; then
-              level_icon="❌"
-            elif [ "$has_warn" = "true" ]; then
-              level_icon="⚠️"
-            else
-              level_icon="🔵"
-            fi
-            {
-              echo "<details>"
-              echo "<summary>$level_icon <strong>$job_name</strong>: $count finding(s) — expand to review</summary>"
-              echo
-              echo '```'
-              jq_fmt='.[] |
-                (if .annotation_level == "failure" then "ERROR"
-                 elif .annotation_level == "warning" then "WARNING"
-                 else (.annotation_level | ascii_upcase) end) as $lvl |
-                "[" + $lvl + "] \(.path):\(.start_line) — \(.message)"'
-              printf '%s' "$annotations" | jq -r "$jq_fmt"
-              echo '```'
-              echo
-              echo "</details>"
-            } >> "$findings_block"
-          done < <(
-            gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
-              --paginate --jq \
-              '.jobs[] | select(.status == "completed") | [(.id | tostring), .name] | @tsv' \
-              2>/dev/null || true
-          )
-          if [ -s "$findings_block" ]; then
-            {
-              echo
-              echo "---"
-              echo
-              echo "### 🔍 Findings"
-              echo
-            } >> "$body_file"
-            cat "$findings_block" >> "$body_file"
-          fi
-          rm -f "$findings_block"
-        fi
-
-        # Step summary is the table without the marker.
         cat "$body_file" >> "$GITHUB_STEP_SUMMARY"
 
-        # PR comment prepends the marker so the next run can find it.
         comment_file=$(mktemp)
         { echo "$MARKER"; cat "$body_file"; } > "$comment_file"
 
@@ -257,11 +289,7 @@ runs:
           exit 0
         fi
 
-        # Find existing sticky comment by marker, then PATCH or POST.
-        existing_id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
-          --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" \
-          | head -n1 || true)
-
+        existing_id=$(find_comment)
         if [ -n "$existing_id" ]; then
           gh api -X PATCH "repos/$REPO/issues/comments/$existing_id" \
             -F body=@"$comment_file" >/dev/null
