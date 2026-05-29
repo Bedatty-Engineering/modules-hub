@@ -5,3 +5,5 @@
 *.log
 node_modules/
 .codex
+# Local agent settings
+.claude/settings.local.json
