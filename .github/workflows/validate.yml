@@ -97,6 +97,10 @@ on:
         description: Post / update a sticky summary comment on the PR.
         type: boolean
         default: true
+      modules_hub_ref:
+        description: Ref of modules-hub to use for summary action code.
+        type: string
+        default: "dev"
 
     secrets:
       repository_operator:
@@ -372,8 +376,15 @@ jobs:
     needs: [pr-hygiene, advisory-checks]
     if: always() && inputs.is_pull_request && inputs.enable_summary_comment && github.event.pull_request.draft != true
     steps:
+      - name: Checkout modules-hub actions
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Bedatty-Engineering/modules-hub
+          ref: ${{ inputs.modules_hub_ref }}
+          path: .modules-hub
+
       - name: Post summary
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@feat/pr-assignee
+        uses: ./.modules-hub/composite/hub/pr-summary
         with:
           github-token: ${{ secrets.repository_operator || github.token }}
           title-result: ${{ needs.pr-hygiene.outputs.title-result || 'skipped' }}

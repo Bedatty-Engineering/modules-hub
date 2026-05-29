@@ -34,6 +34,7 @@ jobs:
       target_branches_for_source_check: "main"
       enable_auto_labeler: true
       labeler_config_path: ".github/labeler.yml"
+      modules_hub_ref: ${{ github.head_ref || github.ref_name }}
 
   modules-hub:
     name: modules-hub checks
