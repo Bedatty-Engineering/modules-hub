@@ -20,6 +20,3 @@ coverage/
 # Local agent state
 .claude/
 .codex/
-
-# Cursor rules
-.cursor/
