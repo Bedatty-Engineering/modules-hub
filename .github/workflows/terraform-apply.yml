@@ -41,7 +41,7 @@ jobs:
 
       - name: Detect stacks
         id: changed
-        uses: ./composite/terraform/detect-stacks
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/detect-stacks@v1
         with:
           stacks_dir: ${{ inputs.stacks_dir }}
           modules_dir: ${{ inputs.modules_dir }}
@@ -73,40 +73,40 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Mask secrets
-        uses: ./composite/terraform/mask-secrets
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/mask-secrets@v1
 
       - name: Setup Terraform
-        uses: ./composite/terraform/setup
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/setup@v1
         with:
           terraform_version: ${{ inputs.terraform_version }}
 
       - name: Verify Terraform Cloud token
-        uses: ./composite/terraform/verify-tfc-token
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/verify-tfc-token@v1
         with:
           environment_label: ${{ inputs.environment_prefix }}${{ matrix.stack }}
 
       - name: Init (Makefile)
         if: inputs.use_makefile == true
-        uses: ./composite/terraform/init-make
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/init-make@v1
         with:
           stack: ${{ matrix.stack }}
 
       - name: Apply (Makefile)
         id: apply_make
         if: inputs.use_makefile == true
-        uses: ./composite/terraform/apply-make
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/apply-make@v1
         with:
           stack: ${{ matrix.stack }}
 
       - name: Apply (directory)
         id: apply_direct
         if: inputs.use_makefile == false
-        uses: ./composite/terraform/apply
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/apply@v1
         with:
           working_directory: ${{ inputs.stacks_dir }}/${{ matrix.stack }}
 
       - name: Report apply failure
         if: failure()
-        uses: ./composite/terraform/report-apply-failure
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/report-apply-failure@v1
         with:
           stack_name: ${{ matrix.stack }}

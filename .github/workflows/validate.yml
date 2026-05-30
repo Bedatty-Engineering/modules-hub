@@ -97,11 +97,6 @@ on:
         description: Post / update a sticky summary comment on the PR.
         type: boolean
         default: true
-      modules_hub_ref:
-        description: Ref of modules-hub to use for summary action code.
-        type: string
-        default: "dev"
-
     secrets:
       repository_operator:
         description: >
@@ -146,7 +141,7 @@ jobs:
       - name: Lint commits
         id: commitlint
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/commitlint@feat/pr-assignee
+        uses: Bedatty-Engineering/modules-hub/composite/hub/commitlint@v1
         with:
           pr-base-sha: ${{ github.event.pull_request.base.sha }}
           pr-head-sha: ${{ github.event.pull_request.head.sha }}
@@ -154,7 +149,7 @@ jobs:
       - name: Validate PR title
         id: title
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-title@feat/pr-assignee
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-title@v1
         with:
           types: ${{ inputs.pr_title_types }}
           scopes: ${{ inputs.pr_title_scopes }}
@@ -163,7 +158,7 @@ jobs:
       - name: Validate PR description
         id: description
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-description@feat/pr-assignee
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-description@v1
         with:
           min-length: ${{ inputs.pr_description_min_length }}
 
@@ -171,7 +166,7 @@ jobs:
         id: source
         if: inputs.enforce_source_branches
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-source-branch@feat/pr-assignee
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-source-branch@v1
         with:
           allowed-branches: ${{ inputs.allowed_source_branches }}
           target-branches: ${{ inputs.target_branches_for_source_check }}
@@ -214,7 +209,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Lint GitHub workflows
-        uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@feat/pr-assignee
+        uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@v1
 
   # ----------------- Changed Files Detection -----------------
   changed-files:
@@ -321,7 +316,7 @@ jobs:
         id: size
         if: inputs.enable_pr_size_check
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@feat/pr-assignee
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@v1
         with:
           github-token: ${{ secrets.repository_operator || github.token }}
           fail-on-xl: ${{ inputs.pr_size_fail_on_xl && 'true' || 'false' }}
@@ -330,7 +325,7 @@ jobs:
         id: labels
         if: inputs.enable_auto_labeler
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@feat/pr-assignee
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@v1
         with:
           github-token: ${{ secrets.repository_operator || github.token }}
           config-path: ${{ inputs.labeler_config_path }}
@@ -339,7 +334,7 @@ jobs:
         id: assignee
         if: inputs.enable_pr_assignee
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-assignee@feat/pr-assignee
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-assignee@v1
         with:
           github-token: ${{ secrets.repository_operator || github.token }}
           assignee: >-
@@ -365,7 +360,7 @@ jobs:
       && needs.changed-files.outputs.codeql_languages != '[]'
       && (needs.actionlint.result == 'success' || needs.actionlint.result == 'skipped')
       && (needs.yamllint.result == 'success' || needs.yamllint.result == 'skipped')
-    uses: Bedatty-Engineering/modules-hub/.github/workflows/codeql.yml@feat/pr-assignee
+    uses: ./.github/workflows/codeql.yml
     with:
       languages: ${{ needs.changed-files.outputs.codeql_languages }}
 
@@ -376,15 +371,8 @@ jobs:
     needs: [pr-hygiene, advisory-checks]
     if: always() && inputs.is_pull_request && inputs.enable_summary_comment && github.event.pull_request.draft != true
     steps:
-      - name: Checkout modules-hub actions
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: Bedatty-Engineering/modules-hub
-          ref: ${{ inputs.modules_hub_ref }}
-          path: .modules-hub
-
       - name: Post summary
-        uses: ./.modules-hub/composite/hub/pr-summary
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@v1
         with:
           github-token: ${{ secrets.repository_operator || github.token }}
           title-result: ${{ needs.pr-hygiene.outputs.title-result || 'skipped' }}
