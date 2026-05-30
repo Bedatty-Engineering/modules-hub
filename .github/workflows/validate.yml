@@ -79,22 +79,64 @@ on:
         type: string
         default: ".github/labeler.yml"
 
+      # ----- Assignee -----
+      enable_pr_assignee:
+        description: Auto-assign the PR to its author.
+        type: boolean
+        default: true
+      pr_assignee_override:
+        description: >
+          Optional comma-separated logins to assign instead of (or in
+          addition to) the PR author. Leave empty to default to the
+          author.
+        type: string
+        default: ""
+
       # ----- Summary -----
       enable_summary_comment:
         description: Post / update a sticky summary comment on the PR.
         type: boolean
         default: true
+      modules_hub_ref:
+        description: Ref of modules-hub to use for summary action code.
+        type: string
+        default: "dev"
+
+    secrets:
+      repository_operator:
+        description: >
+          Optional PAT used by steps that write to the PR (labels,
+          assignees, sticky comment). When provided, GitHub attributes
+          those actions to the token's owner instead of github-actions[bot].
+          Falls back to the workflow's GITHUB_TOKEN when absent.
+        required: false
 
 permissions:
   contents: read
   pull-requests: write
+  issues: write
+  security-events: write
+  packages: read
+  actions: read
 
 jobs:
-  # ----------------- Commit Lint (PR only) -----------------
-  commitlint:
-    name: Lint commit messages
+  # ----------------- Tier 0: PR Hygiene Gate (PR only) -----------------
+  # Single gate that combines commit-message lint, PR title, description,
+  # and (optional) source-branch checks. Downstream jobs use a simple
+  # `needs: pr-hygiene` so a hygiene failure fails fast and saves compute
+  # on the heavier tiers.
+  pr-hygiene:
+    name: PR hygiene
     runs-on: ubuntu-latest
-    if: inputs.is_pull_request
+    if: inputs.is_pull_request && github.event.pull_request.draft != true
+    outputs:
+      commitlint-result: ${{ steps.collect.outputs.commitlint }}
+      title-result: ${{ steps.collect.outputs.title }}
+      title-message: ${{ steps.title.outputs.message }}
+      description-result: ${{ steps.collect.outputs.description }}
+      description-message: ${{ steps.description.outputs.message }}
+      source-branch-result: ${{ steps.collect.outputs.source }}
+      source-branch-message: ${{ steps.source.outputs.message }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -102,28 +144,87 @@ jobs:
           fetch-depth: 0
 
       - name: Lint commits
-        uses: Bedatty-Engineering/modules-hub/composite/hub/commitlint@v1
+        id: commitlint
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/commitlint@feat/pr-assignee
         with:
           pr-base-sha: ${{ github.event.pull_request.base.sha }}
           pr-head-sha: ${{ github.event.pull_request.head.sha }}
 
-  # ----------------- Workflow Lint -----------------
+      - name: Validate PR title
+        id: title
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-title@feat/pr-assignee
+        with:
+          types: ${{ inputs.pr_title_types }}
+          scopes: ${{ inputs.pr_title_scopes }}
+          require-scope: ${{ inputs.require_scope && 'true' || 'false' }}
+
+      - name: Validate PR description
+        id: description
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-description@feat/pr-assignee
+        with:
+          min-length: ${{ inputs.pr_description_min_length }}
+
+      - name: Validate source branch
+        id: source
+        if: inputs.enforce_source_branches
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-source-branch@feat/pr-assignee
+        with:
+          allowed-branches: ${{ inputs.allowed_source_branches }}
+          target-branches: ${{ inputs.target_branches_for_source_check }}
+
+      - name: Collect and enforce hygiene
+        id: collect
+        run: |
+          set -euo pipefail
+          commitlint="${{ steps.commitlint.outcome }}"
+          title="${{ steps.title.outcome }}"
+          description="${{ steps.description.outcome }}"
+          source="${{ steps.source.outcome || 'skipped' }}"
+          {
+            echo "commitlint=$commitlint"
+            echo "title=$title"
+            echo "description=$description"
+            echo "source=$source"
+          } >> "$GITHUB_OUTPUT"
+          fail=0
+          for r in "$commitlint" "$title" "$description" "$source"; do
+            [ "$r" = "failure" ] && fail=1
+          done
+          if [ "$fail" -eq 1 ]; then
+            msg="PR hygiene failed"
+            msg="$msg (commitlint=$commitlint title=$title"
+            msg="$msg description=$description source=$source)"
+            echo "::error::$msg"
+            exit 1
+          fi
+          echo "All hygiene checks passed."
+
+  # ----------------- Tier 1: Workflow Lint -----------------
   actionlint:
     name: Lint GitHub workflows
     runs-on: ubuntu-latest
+    needs: [pr-hygiene, changed-files]
+    if: needs.changed-files.outputs.workflows_changed == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Lint GitHub workflows
-        uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@feat/pr-assignee
 
   # ----------------- Changed Files Detection -----------------
   changed-files:
     name: Detect changed files
     runs-on: ubuntu-latest
     outputs:
-      yaml_files: ${{ steps.detect.outputs.yaml_all }}
+      yaml_files: ${{ steps.detect.outputs.yaml_all_changed_files }}
+      workflows_changed: ${{ steps.detect.outputs.workflows_any_changed }}
+      js_ts_changed: ${{ steps.detect.outputs.js_ts_any_changed }}
+      codeql_languages: ${{ steps.codeql.outputs.languages }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -135,20 +236,52 @@ jobs:
         uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files_yaml: |
-            yaml_all:
+            yaml:
               - '**/*.yml'
               - '**/*.yaml'
-          dir_names: false
+            workflows:
+              - '.github/workflows/**'
+              - '**/action.yml'
+              - '**/action.yaml'
+            js_ts:
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.mjs'
+              - '**/*.cjs'
+
+      - name: Compute CodeQL language matrix
+        id: codeql
+        run: |
+          set -euo pipefail
+          langs=()
+          if [ "${{ steps.detect.outputs.workflows_any_changed }}" = "true" ]; then
+            langs+=("\"actions\"")
+          fi
+          if [ "${{ steps.detect.outputs.js_ts_any_changed }}" = "true" ]; then
+            langs+=("\"javascript-typescript\"")
+          fi
+          if [ "${#langs[@]}" -eq 0 ]; then
+            json="[]"
+          else
+            json="[$(IFS=,; echo "${langs[*]}")]"
+          fi
+          echo "languages=$json"
+          echo "languages=$json" >> "$GITHUB_OUTPUT"
 
       - name: Summarize detection
         run: |
-          echo "yaml_all=${{ steps.detect.outputs.yaml_all }}"
+          echo "yaml=${{ steps.detect.outputs.yaml_any_changed }}"
+          echo "workflows=${{ steps.detect.outputs.workflows_any_changed }}"
+          echo "js_ts=${{ steps.detect.outputs.js_ts_any_changed }}"
+          echo "codeql_languages=${{ steps.codeql.outputs.languages }}"
 
   # ----------------- YAML Lint -----------------
   yamllint:
     name: YAML lint
     runs-on: ubuntu-latest
-    needs: changed-files
+    needs: [pr-hygiene, changed-files]
     if: needs.changed-files.outputs.yaml_files != ''
     steps:
       - name: Checkout
@@ -162,92 +295,57 @@ jobs:
           FILES: ${{ needs.changed-files.outputs.yaml_files }}
         run: |
           set -euo pipefail
+          # -f github emits ::warning/::error annotations picked up by the
+          # Annotations API and surfaced in the pr-summary findings section.
           # FILES is a space-separated list; word splitting is intentional.
           # shellcheck disable=SC2086
-          yamllint -d relaxed $FILES
-
-  # ----------------- Tier 1: Blocking Checks (PR only) -----------------
-  blocking-checks:
-    name: Blocking checks
-    runs-on: ubuntu-latest
-    if: inputs.is_pull_request && github.event.pull_request.draft != true
-    outputs:
-      title-result: ${{ steps.collect.outputs.title }}
-      description-result: ${{ steps.collect.outputs.description }}
-      source-branch-result: ${{ steps.collect.outputs.source }}
-    steps:
-      - name: Validate PR title
-        id: title
-        continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-title@v1
-        with:
-          types: ${{ inputs.pr_title_types }}
-          scopes: ${{ inputs.pr_title_scopes }}
-          require-scope: ${{ inputs.require_scope && 'true' || 'false' }}
-
-      - name: Validate PR description
-        id: description
-        continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-description@v1
-        with:
-          min-length: ${{ inputs.pr_description_min_length }}
-
-      - name: Validate source branch
-        id: source
-        if: inputs.enforce_source_branches
-        continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-source-branch@v1
-        with:
-          allowed-branches: ${{ inputs.allowed_source_branches }}
-          target-branches: ${{ inputs.target_branches_for_source_check }}
-
-      - name: Collect and enforce blocking
-        id: collect
-        run: |
-          set -euo pipefail
-          title="${{ steps.title.outcome }}"
-          description="${{ steps.description.outcome }}"
-          source="${{ steps.source.outcome || 'skipped' }}"
-          {
-            echo "title=$title"
-            echo "description=$description"
-            echo "source=$source"
-          } >> "$GITHUB_OUTPUT"
-          fail=0
-          for r in "$title" "$description" "$source"; do
-            [ "$r" = "failure" ] && fail=1
-          done
-          if [ "$fail" -eq 1 ]; then
-            echo "::error::One or more blocking checks failed (title=$title description=$description source=$source)"
-            exit 1
-          fi
-          echo "All blocking checks passed."
+          yamllint -f github \
+            -d '{extends: relaxed, rules: {line-length: {max: 120, level: warning}}}' \
+            $FILES
 
   # ----------------- Tier 2: Advisory Checks (PR only) -----------------
   advisory-checks:
     name: Advisory checks
     runs-on: ubuntu-latest
-    needs: blocking-checks
-    if: needs.blocking-checks.result == 'success' && inputs.is_pull_request && github.event.pull_request.draft != true
+    needs: pr-hygiene
+    if: inputs.is_pull_request && github.event.pull_request.draft != true
     outputs:
       size-result: ${{ steps.collect.outputs.size }}
+      size-message: ${{ steps.size.outputs.message }}
       label-result: ${{ steps.collect.outputs.label }}
+      label-message: ${{ steps.labels.outputs.message }}
+      assignee-result: ${{ steps.collect.outputs.assignee }}
+      assignee-message: ${{ steps.assignee.outputs.message }}
     steps:
       - name: Check PR size
         id: size
         if: inputs.enable_pr_size_check
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-size@feat/pr-assignee
         with:
+          github-token: ${{ secrets.repository_operator || github.token }}
           fail-on-xl: ${{ inputs.pr_size_fail_on_xl && 'true' || 'false' }}
 
       - name: Auto-label PR
         id: labels
         if: inputs.enable_auto_labeler
         continue-on-error: true
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@v1
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-labels@feat/pr-assignee
         with:
+          github-token: ${{ secrets.repository_operator || github.token }}
           config-path: ${{ inputs.labeler_config_path }}
+
+      - name: Auto-assign PR
+        id: assignee
+        if: inputs.enable_pr_assignee
+        continue-on-error: true
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-assignee@feat/pr-assignee
+        with:
+          github-token: ${{ secrets.repository_operator || github.token }}
+          assignee: >-
+            ${{ inputs.pr_assignee_override != '' &&
+            inputs.pr_assignee_override ||
+            github.event.pull_request.user.login }}
 
       - name: Collect results
         id: collect
@@ -255,20 +353,49 @@ jobs:
           {
             echo "size=${{ steps.size.outcome || 'skipped' }}"
             echo "label=${{ steps.labels.outcome || 'skipped' }}"
+            echo "assignee=${{ steps.assignee.outcome || 'skipped' }}"
           } >> "$GITHUB_OUTPUT"
+
+  # ----------------- Tier 3: CodeQL (heavy, gated on Tier 1) -----------------
+  codeql:
+    name: CodeQL
+    needs: [changed-files, actionlint, yamllint]
+    if: |
+      always()
+      && needs.changed-files.outputs.codeql_languages != '[]'
+      && (needs.actionlint.result == 'success' || needs.actionlint.result == 'skipped')
+      && (needs.yamllint.result == 'success' || needs.yamllint.result == 'skipped')
+    uses: Bedatty-Engineering/modules-hub/.github/workflows/codeql.yml@feat/pr-assignee
+    with:
+      languages: ${{ needs.changed-files.outputs.codeql_languages }}
 
   # ----------------- Summary Comment (PR only) -----------------
   pr-summary:
     name: PR summary
     runs-on: ubuntu-latest
-    needs: [blocking-checks, advisory-checks]
+    needs: [pr-hygiene, advisory-checks]
     if: always() && inputs.is_pull_request && inputs.enable_summary_comment && github.event.pull_request.draft != true
     steps:
-      - name: Post summary
-        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@v1
+      - name: Checkout modules-hub actions
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          title-result: ${{ needs.blocking-checks.outputs.title-result || 'skipped' }}
-          description-result: ${{ needs.blocking-checks.outputs.description-result || 'skipped' }}
-          source-branch-result: ${{ needs.blocking-checks.outputs.source-branch-result || 'skipped' }}
+          repository: Bedatty-Engineering/modules-hub
+          ref: ${{ inputs.modules_hub_ref }}
+          path: .modules-hub
+
+      - name: Post summary
+        uses: ./.modules-hub/composite/hub/pr-summary
+        with:
+          github-token: ${{ secrets.repository_operator || github.token }}
+          title-result: ${{ needs.pr-hygiene.outputs.title-result || 'skipped' }}
+          title-message: ${{ needs.pr-hygiene.outputs.title-message }}
+          description-result: ${{ needs.pr-hygiene.outputs.description-result || 'skipped' }}
+          description-message: ${{ needs.pr-hygiene.outputs.description-message }}
+          source-branch-result: ${{ needs.pr-hygiene.outputs.source-branch-result || 'skipped' }}
+          source-branch-message: ${{ needs.pr-hygiene.outputs.source-branch-message }}
           size-result: ${{ needs.advisory-checks.outputs.size-result || 'skipped' }}
+          size-message: ${{ needs.advisory-checks.outputs.size-message }}
           label-result: ${{ needs.advisory-checks.outputs.label-result || 'skipped' }}
+          label-message: ${{ needs.advisory-checks.outputs.label-message }}
+          assignee-result: ${{ needs.advisory-checks.outputs.assignee-result || 'skipped' }}
+          assignee-message: ${{ needs.advisory-checks.outputs.assignee-message }}

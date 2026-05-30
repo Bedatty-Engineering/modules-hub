@@ -44,6 +44,9 @@ outputs:
   outcome:
     description: success | failure
     value: ${{ steps.size.outputs.outcome }}
+  message:
+    description: Human-readable error message when outcome is failure.
+    value: ${{ steps.size.outputs.message }}
   size:
     description: Computed size bucket (XS/S/M/L/XL).
     value: ${{ steps.size.outputs.size }}
@@ -71,11 +74,23 @@ runs:
       run: |
         set -euo pipefail
 
-        if [ -z "${PR_NUMBER:-}" ]; then
-          echo "::error::pr-size requires a pull_request context"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+        fail() {
+          local msg="$1"
+          echo "::error::$msg"
+          {
+            echo "outcome=failure"
+            echo "message=$msg"
+          } >> "$GITHUB_OUTPUT"
           exit 1
-        fi
+        }
+        _on_err() {
+          [ $? -ne 0 ] && [ -z "${FAIL_HANDLED:-}" ] || return 0
+          FAIL_HANDLED=1
+          fail "Unexpected failure (last command: ${BASH_COMMAND})"
+        }
+        trap _on_err ERR
+
+        [ -z "${PR_NUMBER:-}" ] && fail "pr-size requires a pull_request context"
 
         # Fetch files for the PR with additions/deletions and filename.
         files_json=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" \
@@ -133,9 +148,7 @@ runs:
         } >> "$GITHUB_OUTPUT"
 
         if [ "${FAIL_XL,,}" = "true" ] && [ "$bucket" = "XL" ]; then
-          echo "::error::PR is XL ($total lines) and fail-on-xl is enabled"
-          echo "outcome=failure" >> "$GITHUB_OUTPUT"
-          exit 1
+          fail "PR is XL ($total lines) and fail-on-xl is enabled"
         fi
 
         echo "outcome=success" >> "$GITHUB_OUTPUT"
