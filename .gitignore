@@ -1,9 +1,25 @@
+# OS / filesystem
 .DS_Store
+Thumbs.db
+
+# Editor state
 .idea/
 .vscode/
 *.swp
+*.swo
+
+# Logs and temporary files
 *.log
+*.tmp
+
+# Node.js dependencies and generated output
 node_modules/
-.codex
-# Local agent settings
-.claude/settings.local.json
+dist/
+coverage/
+
+# Local agent state
+.claude/
+.codex/
+
+# Cursor rules
+.cursor/
