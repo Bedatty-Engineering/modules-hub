@@ -1,0 +1,32 @@
+name: Verify composite READMEs [composite]
+description: >
+  Verifies that changed composite directories include a README.md file.
+
+inputs:
+  files:
+    description: Space-separated composite action.yml and README.md files.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Verify README exists for changed composites
+      shell: bash
+      env:
+        FILES: ${{ inputs.files }}
+      run: |
+        set -euo pipefail
+
+        status=0
+        # FILES is a space-separated list from tj-actions/changed-files.
+        # shellcheck disable=SC2086
+        set -- $FILES
+        dirs=$(for file in "$@"; do dirname "$file"; done | sort -u)
+        for dir in $dirs; do
+          if [ ! -f "$dir/README.md" ]; then
+            echo "::error file=/action.yml::Composite is missing README.md"
+            status=1
+          fi
+        done
+
+        exit $status

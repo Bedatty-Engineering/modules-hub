@@ -1,0 +1,47 @@
+name: Verify release config [composite]
+description: >
+  Verifies that repository release configuration files are present.
+
+inputs:
+  config-files:
+    description: Space-separated semantic-release config files to check.
+    required: false
+    default: >-
+      .releaserc.json release.config.js release.config.cjs release.config.mjs
+  required-files:
+    description: Space-separated files that must exist for release automation.
+    required: false
+    default: "package.json package-lock.json"
+
+runs:
+  using: composite
+  steps:
+    - name: Verify release config
+      shell: bash
+      env:
+        CONFIG_FILES: ${{ inputs.config-files }}
+        REQUIRED_FILES: ${{ inputs.required-files }}
+      run: |
+        set -euo pipefail
+
+        found=""
+        for file in $CONFIG_FILES; do
+          if [ -f "$file" ]; then
+            found="$file"
+            break
+          fi
+        done
+
+        if [ -z "$found" ]; then
+          echo "::error::Missing semantic-release config ($CONFIG_FILES)"
+          exit 1
+        fi
+
+        for file in $REQUIRED_FILES; do
+          if [ ! -f "$file" ]; then
+            echo "::error file=$file::Missing required release file '$file'"
+            exit 1
+          fi
+        done
+
+        echo "Release config files present (using $found)."
