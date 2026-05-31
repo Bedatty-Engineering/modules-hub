@@ -47,7 +47,7 @@ jobs:
 
       - name: Detect stacks
         id: changed
-        uses: ./composite/terraform/detect-stacks
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/detect-stacks@v1
         with:
           stacks_dir: ${{ inputs.stacks_dir }}
           modules_dir: ${{ inputs.modules_dir }}
@@ -81,34 +81,34 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Mask secrets
-        uses: ./composite/terraform/mask-secrets
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/mask-secrets@v1
 
       - name: Setup Terraform
-        uses: ./composite/terraform/setup
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/setup@v1
         with:
           terraform_version: ${{ inputs.terraform_version }}
 
       - name: Verify Terraform Cloud token
-        uses: ./composite/terraform/verify-tfc-token
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/verify-tfc-token@v1
         with:
           environment_label: ${{ inputs.environment_prefix }}${{ matrix.stack }}
 
       - name: Init (Makefile)
         if: inputs.use_makefile == true
-        uses: ./composite/terraform/init-make
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/init-make@v1
         with:
           stack: ${{ matrix.stack }}
 
       - name: Validate (Makefile)
         if: inputs.use_makefile == true
-        uses: ./composite/terraform/validate-make
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/validate-make@v1
         with:
           stack: ${{ matrix.stack }}
 
       - name: Plan (Makefile)
         id: plan_make
         if: inputs.use_makefile == true
-        uses: ./composite/terraform/plan-make
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/plan-make@v1
         with:
           stack: ${{ matrix.stack }}
           plan_output_file: plan-output.txt
@@ -117,7 +117,7 @@ jobs:
       - name: Plan (directory)
         id: plan_direct
         if: inputs.use_makefile == false
-        uses: ./composite/terraform/plan
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/plan@v1
         with:
           working_directory: ${{ inputs.stacks_dir }}/${{ matrix.stack }}
           plan_file: plan-output.txt
@@ -125,7 +125,7 @@ jobs:
 
       - name: Post plan to PR
         if: always() && inputs.post_plan_comment == true && github.event_name == 'pull_request'
-        uses: ./composite/terraform/post-plan-comment
+        uses: Bedatty-Engineering/modules-hub/composite/terraform/post-plan-comment@v1
         continue-on-error: true
         with:
           plan_outcome: ${{ steps.plan_make.outcome != 'skipped' && steps.plan_make.outcome || steps.plan_direct.outcome }}

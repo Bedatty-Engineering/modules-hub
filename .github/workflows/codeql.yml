@@ -1,8 +1,7 @@
-name: CodeQL
+# yamllint disable rule:line-length
+name: CodeQL [Reusable]
 
 on:
-  push:
-    branches: [main]
   workflow_call:
     inputs:
       languages:
@@ -13,9 +12,23 @@ on:
         type: string
         required: false
         default: '["actions","javascript-typescript"]'
-  schedule:
-    - cron: '39 20 * * 2'
-  workflow_dispatch:
+      queries:
+        description: "CodeQL query suite or query pack list to run."
+        type: string
+        required: false
+        default: security-extended
+      upload_sarif:
+        description: "Upload the generated SARIF results to code scanning."
+        type: boolean
+        required: false
+        default: true
+      filter_first_party_unpinned_tags:
+        description: >
+          Suppress actions/unpinned-tag findings for first-party modules-hub
+          composite actions pinned to floating major tags.
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read
@@ -35,53 +48,42 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # On workflow_call the caller passes a narrowed JSON array; on
-        # schedule / workflow_dispatch the default kicks in and scans both.
-        language: ${{ fromJSON(inputs.languages || '["actions","javascript-typescript"]') }}
+        # Callers can pass a narrowed JSON array; scheduled runs should be
+        # configured in the caller workflow.
+        language: >-
+          ${{ fromJSON(inputs.languages || '["actions","javascript-typescript"]') }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4 (codeql-bundle-v2.25.2)
+        # v4 (codeql-bundle-v2.25.2)
+        uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa
         with:
           languages: ${{ matrix.language }}
-          queries: security-extended
+          queries: ${{ inputs.queries || 'security-extended' }}
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4 (codeql-bundle-v2.25.2)
+        # v4 (codeql-bundle-v2.25.2)
+        uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa
         with:
           category: "/language:${{ matrix.language }}"
           output: codeql-results
           upload: never
 
-      # Suppress `actions/unpinned-tag` for first-party composites pinned
-      # to a floating major tag (e.g. Bedatty-Engineering/modules-hub/
-      # composite/...@v1). The rule stays active for every other action,
-      # so external dependencies still must be SHA-pinned.
       - name: Strip first-party unpinned-tag findings
-        if: matrix.language == 'actions'
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          files=(codeql-results/*.sarif)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No SARIF files produced; nothing to filter."
-            exit 0
-          fi
-          for sarif in "${files[@]}"; do
-            jq '(.runs[].results) |= map(select(
-                  (.ruleId != "actions/unpinned-tag") or
-                  ((.message.text // "")
-                    | test("Bedatty-Engineering/modules-hub/composite/")
-                    | not)
-                ))' "$sarif" > "$sarif.tmp"
-            mv "$sarif.tmp" "$sarif"
-            echo "Filtered $sarif"
-          done
+        if: >-
+          matrix.language == 'actions'
+          && inputs.filter_first_party_unpinned_tags != false
+        uses: Bedatty-Engineering/modules-hub/composite/hub/filter-codeql-sarif@v1
+        with:
+          sarif-directory: codeql-results
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4 (codeql-bundle-v2.25.2)
+        if: inputs.upload_sarif != false
+        # v4 (codeql-bundle-v2.25.2)
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa
         with:
           sarif_file: codeql-results
           category: "/language:${{ matrix.language }}"

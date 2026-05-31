@@ -1,0 +1,44 @@
+name: Verify composite pinning [composite]
+description: >
+  Verifies that action references inside composite action files are pinned.
+
+inputs:
+  files:
+    description: Space-separated composite action.yml files to check.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Verify SHA / tag pinning
+      shell: bash
+      env:
+        FILES: ${{ inputs.files }}
+      run: |
+        set -euo pipefail
+
+        status=0
+        # FILES is a space-separated list from tj-actions/changed-files.
+        # shellcheck disable=SC2086
+        set -- $FILES
+        for file in "$@"; do
+          [ -f "$file" ] || continue
+          while IFS= read -r line; do
+            ref=$(printf '%s' "$line" \
+              | sed -E -e 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//' \
+                       -e 's/^["'\'']//' -e 's/["'\'']$//' \
+                       -e 's/[[:space:]]*#.*//')
+            [ -z "$ref" ] && continue
+            case "$ref" in
+              ./*) continue ;;
+              Bedatty-Engineering/modules-hub/*@v[0-9]*) continue ;;
+            esac
+            if ! printf '%s' "$ref" | grep -Eq '@[0-9a-f]{40}$'; then
+              echo "::error file=$file::Action '$ref' is not pinned"
+              echo "::error file=$file::Expected a SHA or vN tag"
+              status=1
+            fi
+          done < <(grep -E '^[[:space:]]*-?[[:space:]]*uses:' "$file" || true)
+        done
+
+        exit $status
