@@ -1,3 +1,41 @@
+## [1.4.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.3.1...v1.4.0) (2026-05-30)
+
+### Features
+
+* **config:** fold CodeQL into PR validation entrypoint ([e0bce6a](https://github.com/Bedatty-Engineering/modules-hub/commit/e0bce6adace4f1a702f9371417bbcd8876273a4e))
+* **config:** gate actionlint and CodeQL on changed file types ([47db3a2](https://github.com/Bedatty-Engineering/modules-hub/commit/47db3a292ac533d168642522c77cac3b223dd252))
+* **config:** gate jobs on PR hygiene to fail-fast and economize ([fea0ca2](https://github.com/Bedatty-Engineering/modules-hub/commit/fea0ca279a4d0e999c52de8f817a2e89121d2734))
+* **config:** support REPOSITORY_OPERATOR PAT for PR write actions ([5f0a12a](https://github.com/Bedatty-Engineering/modules-hub/commit/5f0a12ae5b4fe5f99a67cce068de9bf266ac2fc7))
+* **hub:** add findings section divider and warning/error emojis in pr-summary ([10e9de3](https://github.com/Bedatty-Engineering/modules-hub/commit/10e9de3003e61d493fad90fc964762268fc17581))
+* **hub:** add pr-assignee composite and wire into validate workflow ([8ae6287](https://github.com/Bedatty-Engineering/modules-hub/commit/8ae6287be95ea764ce98810cbaa2fde1f51e5564))
+* **hub:** add pr-assignee composite to validate workflow ([#62](https://github.com/Bedatty-Engineering/modules-hub/issues/62)) ([e58d19a](https://github.com/Bedatty-Engineering/modules-hub/commit/e58d19acbaf8998fa729f2349c6fca20a9a378b4))
+* **hub:** surface CodeQL findings in PR summary toggle ([082799b](https://github.com/Bedatty-Engineering/modules-hub/commit/082799b737c86e4ccef01ccc3ec0667b29fc2350))
+* **hub:** surface error messages in pr-summary dropdown on failure ([38fbfc3](https://github.com/Bedatty-Engineering/modules-hub/commit/38fbfc378d4247f28bcefe2d51a14f1d232c1ec6))
+* **hub:** surface yamllint findings in PR summary; fix CodeQL on.push warning ([3f26795](https://github.com/Bedatty-Engineering/modules-hub/commit/3f26795f3febf1b1340d8699c67c6ee010bde55b))
+
+### Bug Fixes
+
+* **config:** correct tj-actions output names in validate-modules-hub changed-files ([6e0cfe1](https://github.com/Bedatty-Engineering/modules-hub/commit/6e0cfe1f7635fe6c26eb8935397aa93ccd0434c6))
+* **config:** grant issues: write to caller for pr-assignee composite ([999e098](https://github.com/Bedatty-Engineering/modules-hub/commit/999e0980d7913d6b56eee64473469222c96e2665))
+* **config:** strip inline comments before SHA pinning check in pinned-actions ([c20277b](https://github.com/Bedatty-Engineering/modules-hub/commit/c20277b767100863f7c0041a8233cb3731e7cc58))
+* **deps:** replace label github-actions with ci in dependabot.yml ([3305095](https://github.com/Bedatty-Engineering/modules-hub/commit/330509552214cf7eeea66ee1f005ba3c3b99513f))
+* **deps:** replace label github-actions with ci in dependabot.yml ([56a5655](https://github.com/Bedatty-Engineering/modules-hub/commit/56a5655d56d676fd1356129dbaae6af138d28b3f))
+* **deps:** replace label npm with javascript in dependabot.yml ([499d835](https://github.com/Bedatty-Engineering/modules-hub/commit/499d83574bb5f179f39dd032635b6ffef268dbd7))
+* **hub:** fix all remaining line-length warnings across composites and validate ([c917b37](https://github.com/Bedatty-Engineering/modules-hub/commit/c917b37f058814f94238f5e1d92b694818f39078))
+* **hub:** fix last two line-length warnings in pr-summary and actionlint ([aa848f4](https://github.com/Bedatty-Engineering/modules-hub/commit/aa848f43c38f201dfa560e444a3b340b40009502))
+* **hub:** include advisory checks in pr-summary overall outcome ([4990334](https://github.com/Bedatty-Engineering/modules-hub/commit/4990334dd7cc7d4084c2b936e879c166e5bf965f))
+* **hub:** replace broken heredoc with variable concat in actionlint format template ([75ee9fa](https://github.com/Bedatty-Engineering/modules-hub/commit/75ee9fa9b32d132ea5e728eb6b93472a67facfd1))
+* **hub:** restore code block in findings; keep emojis in toggle summary only ([64efca2](https://github.com/Bedatty-Engineering/modules-hub/commit/64efca291603204c924f93dff984c494e2f2fe23))
+* **hub:** suppress CodeQL on.push bootstrap advisory from PR findings ([3078047](https://github.com/Bedatty-Engineering/modules-hub/commit/30780471603fe41b74cdd0140a316237a18343fd))
+* **hub:** update setup-node to v6.4.0; raise yamllint limit to 120; refactor trap ([dc0c608](https://github.com/Bedatty-Engineering/modules-hub/commit/dc0c608a4a3ea099fc5929d4d15e1a61095bed2f))
+* **hub:** use inline code for path in findings to preserve copyability with emojis ([553304b](https://github.com/Bedatty-Engineering/modules-hub/commit/553304b0c45f04bba28d252ae08745e27357ffc0))
+* **hub:** use printf to write actionlint format template avoiding parse error ([bab2096](https://github.com/Bedatty-Engineering/modules-hub/commit/bab2096ebb709e2f6a76be26e94f0df086e712a3))
+* **hub:** YAML parse errors in pr-size, pr-labels, pr-summary ([b783afe](https://github.com/Bedatty-Engineering/modules-hub/commit/b783afe7108dc7677286659c395cdf842b8a3c6f))
+
+### Authors
+
+- @bedatty
+
 ## [1.3.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.3.0...v1.3.1) (2026-05-15)
 
 ### Bug Fixes
