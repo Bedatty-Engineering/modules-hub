@@ -1,0 +1,48 @@
+name: Filter CodeQL SARIF [composite]
+description: >
+  Filters generated CodeQL SARIF files before upload.
+
+inputs:
+  sarif-directory:
+    description: Directory containing CodeQL SARIF files.
+    required: false
+    default: codeql-results
+  rule-id:
+    description: CodeQL rule ID to filter.
+    required: false
+    default: actions/unpinned-tag
+  message-pattern:
+    description: Regex pattern for findings to suppress.
+    required: false
+    default: Bedatty-Engineering/modules-hub/composite/
+
+runs:
+  using: composite
+  steps:
+    - name: Filter SARIF findings
+      shell: bash
+      env:
+        SARIF_DIRECTORY: ${{ inputs.sarif-directory }}
+        RULE_ID: ${{ inputs.rule-id }}
+        MESSAGE_PATTERN: ${{ inputs.message-pattern }}
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+
+        files=("$SARIF_DIRECTORY"/*.sarif)
+        if [ ${#files[@]} -eq 0 ]; then
+          echo "No SARIF files produced; nothing to filter."
+          exit 0
+        fi
+
+        for sarif in "${files[@]}"; do
+          jq \
+            --arg rule_id "$RULE_ID" \
+            --arg message_pattern "$MESSAGE_PATTERN" \
+            '(.runs[].results) |= map(select(
+              (.ruleId != $rule_id) or
+              ((.message.text // "") | test($message_pattern) | not)
+            ))' "$sarif" > "$sarif.tmp"
+          mv "$sarif.tmp" "$sarif"
+          echo "Filtered $sarif"
+        done

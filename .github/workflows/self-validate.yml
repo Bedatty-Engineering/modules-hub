@@ -34,7 +34,6 @@ jobs:
       target_branches_for_source_check: "main"
       enable_auto_labeler: true
       labeler_config_path: ".github/labeler.yml"
-      modules_hub_ref: ${{ github.head_ref || github.ref_name }}
 
   modules-hub:
     name: modules-hub checks
@@ -53,7 +52,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Update findings
-        uses: ./composite/hub/pr-summary
+        uses: Bedatty-Engineering/modules-hub/composite/hub/pr-summary@v1
         with:
           github-token: ${{ secrets.REPOSITORY_OPERATOR || github.token }}
           findings-only: "true"
