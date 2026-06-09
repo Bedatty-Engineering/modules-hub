@@ -1,3 +1,13 @@
+## [1.4.2](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.4.1...v1.4.2) (2026-06-09)
+
+### Bug Fixes
+
+* **hub:** add platform check toggles to validate reusable ([#77](https://github.com/Bedatty-Engineering/modules-hub/issues/77)) ([6454c70](https://github.com/Bedatty-Engineering/modules-hub/commit/6454c70626e1aac7feb28b530300e1406976876e))
+
+### Authors
+
+- @bedatty
+
 ## [1.4.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.4.0...v1.4.1) (2026-06-05)
 
 ### Bug Fixes
