@@ -148,7 +148,7 @@ jobs:
       source-branch-message: ${{ steps.source.outputs.message }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -220,7 +220,7 @@ jobs:
     if: inputs.enable_actionlint && needs.changed-files.outputs.workflows_changed == 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Lint GitHub workflows
         uses: Bedatty-Engineering/modules-hub/composite/hub/actionlint@v1
@@ -236,7 +236,7 @@ jobs:
       codeql_languages: ${{ steps.codeql.outputs.languages }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -294,7 +294,7 @@ jobs:
     if: inputs.enable_yamllint && needs.changed-files.outputs.yaml_files != ''
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Install yamllint
         run: pip install --user yamllint==1.35.1
