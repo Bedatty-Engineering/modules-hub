@@ -1,3 +1,14 @@
+## [1.4.1](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.4.0...v1.4.1) (2026-06-05)
+
+### Bug Fixes
+
+* **config:** pin reusable workflow composites to v1 ([#73](https://github.com/Bedatty-Engineering/modules-hub/issues/73)) ([f84f881](https://github.com/Bedatty-Engineering/modules-hub/commit/f84f881cfa2eb3f676b58c86466fdc836a190abc))
+* **release:** trigger self release on push ([3910e0d](https://github.com/Bedatty-Engineering/modules-hub/commit/3910e0dafe04604cbaa12996881258f013971856))
+
+### Authors
+
+- @bedatty
+
 ## [1.4.0](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.3.1...v1.4.0) (2026-05-30)
 
 ### Features
