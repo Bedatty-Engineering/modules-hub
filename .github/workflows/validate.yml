@@ -79,6 +79,20 @@ on:
         type: string
         default: ".github/labeler.yml"
 
+      # ----- Platform checks -----
+      enable_actionlint:
+        description: Run actionlint when workflow-related files change.
+        type: boolean
+        default: true
+      enable_yamllint:
+        description: Run yamllint when YAML files change.
+        type: boolean
+        default: true
+      enable_codeql:
+        description: Run reusable CodeQL analysis when supported files change.
+        type: boolean
+        default: true
+
       # ----- Assignee -----
       enable_pr_assignee:
         description: Auto-assign the PR to its author.
@@ -203,7 +217,7 @@ jobs:
     name: Lint GitHub workflows
     runs-on: ubuntu-latest
     needs: [pr-hygiene, changed-files]
-    if: needs.changed-files.outputs.workflows_changed == 'true'
+    if: inputs.enable_actionlint && needs.changed-files.outputs.workflows_changed == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -277,7 +291,7 @@ jobs:
     name: YAML lint
     runs-on: ubuntu-latest
     needs: [pr-hygiene, changed-files]
-    if: needs.changed-files.outputs.yaml_files != ''
+    if: inputs.enable_yamllint && needs.changed-files.outputs.yaml_files != ''
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -357,6 +371,7 @@ jobs:
     needs: [changed-files, actionlint, yamllint]
     if: |
       always()
+      && inputs.enable_codeql
       && needs.changed-files.outputs.codeql_languages != '[]'
       && (needs.actionlint.result == 'success' || needs.actionlint.result == 'skipped')
       && (needs.yamllint.result == 'success' || needs.yamllint.result == 'skipped')

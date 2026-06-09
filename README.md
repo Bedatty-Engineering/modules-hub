@@ -29,6 +29,32 @@ jobs:
     secrets: inherit
 ```
 
+The reusable `validate.yml` keeps PR hygiene and governance checks on by default, but product repositories can disable platform-oriented checks when they do not want workflow/YAML linting or CodeQL wired through the reusable layer.
+
+Caller example for a product repository:
+
+```yaml
+jobs:
+  base:
+    uses: Bedatty-Engineering/modules-hub/.github/workflows/validate.yml@v1
+    secrets: inherit
+    with:
+      is_pull_request: ${{ github.event_name == 'pull_request' }}
+      enforce_source_branches: true
+      allowed_source_branches: "dev|hotfix/*"
+      target_branches_for_source_check: "main"
+      enable_actionlint: false
+      enable_yamllint: false
+      enable_codeql: false
+```
+
+New `validate.yml` platform-check inputs:
+- `enable_actionlint` (default `true`): lint changed workflow files with actionlint.
+- `enable_yamllint` (default `true`): lint changed YAML files with yamllint.
+- `enable_codeql` (default `true`): run the reusable CodeQL workflow when the changed-file detector finds supported languages.
+
+When these are disabled, the reusable still runs PR hygiene, commitlint, PR title/description validation, source-branch validation, advisory checks, and PR summary. The internal changed-file detector still runs so downstream conditionals remain stable, but the disabled platform jobs are intentionally skipped.
+
 Composites under `composite/` are normally reached **through** those workflows (`uses: ./composite/…` inside this repo). To call a composite directly from your own workflow YAML, use `<org>/modules-hub/composite/<domain>/<action>@<ref>` — see the `README.md` next to that action for inputs.
 
 ## Releases
