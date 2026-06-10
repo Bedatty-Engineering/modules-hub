@@ -25,6 +25,6 @@ runs:
       shell: bash
       run: |
         fmt='{{range $e := .}}::error file={{$e.Filepath}},line={{$e.Line}}'
-        fmt="${fmt}"'::{{$e.Message}} [{{$e.RuleID}}]'
+        fmt="${fmt}"'::{{$e.Message}}'
         printf '%s\n{{end}}\n' "$fmt" > /tmp/actionlint-fmt.tmpl
         actionlint -format "$(cat /tmp/actionlint-fmt.tmpl)"
