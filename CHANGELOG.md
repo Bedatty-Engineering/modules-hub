@@ -1,3 +1,13 @@
+## [1.4.3](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.4.2...v1.4.3) (2026-06-10)
+
+### Bug Fixes
+
+* **hub:** remove unsupported actionlint rule id ([3b96b0e](https://github.com/Bedatty-Engineering/modules-hub/commit/3b96b0ee27e588d7640b317124197033e46fe5d8))
+
+### Authors
+
+- @bedatty
+
 ## [1.4.2](https://github.com/Bedatty-Engineering/modules-hub/compare/v1.4.1...v1.4.2) (2026-06-09)
 
 ### Bug Fixes
